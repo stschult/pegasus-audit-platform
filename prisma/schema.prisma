@@ -1,0 +1,125 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         String   // Changed from enum to String
+  organization String   // "Aldridge Advisors" or "Acme Corp"
+  isClient     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Assignments
+  controlOwner     Control[] @relation("ControlOwner")
+  evidenceProvider Control[] @relation("EvidenceProvider")
+  walkthroughOwner Control[] @relation("WalkthroughOwner")
+  testerAssigned   Control[] @relation("TesterAssigned")
+  
+  // Audit relationships
+  auditOwner       Audit[]   @relation("AuditOwner")
+  relationshipOwner Audit[]  @relation("RelationshipOwner")
+  
+  // Evidence submissions
+  evidenceSubmissions Evidence[]
+  
+  @@map("users")
+}
+
+model Audit {
+  id               String   @id @default(cuid())
+  clientName       String
+  auditFirm        String
+  status           String   @default("ACTIVE")  // Changed from enum to String
+  progress         Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relationships
+  relationshipOwner   User     @relation("RelationshipOwner", fields: [relationshipOwnerId], references: [id])
+  relationshipOwnerId String
+  auditOwner          User     @relation("AuditOwner", fields: [auditOwnerId], references: [id])
+  auditOwnerId        String
+  
+  // Controls
+  controls Control[]
+  
+  @@map("audits")
+}
+
+model Control {
+  id          String   @id @default(cuid())
+  controlId   String   // "FIN-1", "ITGC-1", etc.
+  title       String
+  description String
+  type        String   // Changed from enum to String
+  status      String   @default("REQUEST_SENT")  // Changed from enum to String
+  dueDate     DateTime
+  deadline    DateTime
+  progress    Int      @default(10)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  audit   Audit  @relation(fields: [auditId], references: [id])
+  auditId String
+
+  // Assignments
+  controlOwner         User?   @relation("ControlOwner", fields: [controlOwnerId], references: [id])
+  controlOwnerId       String?
+  evidenceProvider     User?   @relation("EvidenceProvider", fields: [evidenceProviderId], references: [id])
+  evidenceProviderId   String?
+  walkthroughOwner     User?   @relation("WalkthroughOwner", fields: [walkthroughOwnerId], references: [id])
+  walkthroughOwnerId   String?
+  tester               User?   @relation("TesterAssigned", fields: [testerId], references: [id])
+  testerId             String?
+
+  // Evidence
+  evidence Evidence[]
+  
+  // Status history
+  statusHistory StatusHistory[]
+  
+  @@map("controls")
+}
+
+model Evidence {
+  id           String   @id @default(cuid())
+  fileName     String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  uploadedAt   DateTime @default(now())
+  notes        String?
+  
+  // Relationships
+  control     Control @relation(fields: [controlId], references: [id])
+  controlId   String
+  uploadedBy  User    @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+  
+  @@map("evidence")
+}
+
+model StatusHistory {
+  id        String   @id @default(cuid())
+  oldStatus String   // Changed from enum to String
+  newStatus String   // Changed from enum to String
+  changedAt DateTime @default(now())
+  notes     String?
+  
+  // Relationships
+  control   Control @relation(fields: [controlId], references: [id])
+  controlId String
+  
+  @@map("status_history")
+}
