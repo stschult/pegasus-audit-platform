@@ -96,7 +96,7 @@ export default function AuditPlatform() {
       }
 
       const uploadedFile: UploadedFile = {
-        id: Date.now() + i,
+        id: Date.now().toString() + i,
         name: file.name,
         size: file.size,
         type: file.type,

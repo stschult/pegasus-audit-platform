@@ -70,7 +70,12 @@ export default function ControlsView({
             >
               <option value="all">All Status</option>
               <option value="not-started">Not Started</option>
-              <option value="in-progress">In Progress</option>
+              <option value="walkthrough">Walkthrough</option>
+              <option value="design_review">Design Review</option>
+              <option value="testing">Testing</option>
+              <option value="evidence_review">Evidence Review</option>
+              <option value="management_review">Management Review</option>
+              <option value="deficiency_review">Deficiency Review</option>
               <option value="completed">Completed</option>
             </select>
             <select
@@ -99,7 +104,7 @@ export default function ControlsView({
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-lg ${STATUS_COLORS[control.status]}`}>
                   {control.status === 'completed' && <CheckCircle className="h-5 w-5 text-green-600" />}
-                  {control.status === 'in-progress' && <Clock className="h-5 w-5 text-yellow-600" />}
+                  {(control.status === 'testing' || control.status === 'evidence_review') && <Clock className="h-5 w-5 text-yellow-600" />}
                   {control.status === 'not-started' && <AlertCircle className="h-5 w-5 text-gray-600" />}
                 </div>
                 <div>

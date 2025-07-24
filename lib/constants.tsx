@@ -41,162 +41,86 @@ export const mockAudits = [
 export const mockControls = [
   {
     id: 'C001',
+    name: 'Cash Reconciliation',
     title: 'Cash Reconciliation',
     description: 'Monthly bank reconciliation procedures and documentation',
+    controlFamily: 'Financial Controls',
     owner: 'Finance Team',
     tester: 'Sarah Johnson',
     dueDate: '2024-03-15',
     deadline: '2024-03-20',
-    status: 'testing',
-    progress: 75
+    status: 'testing' as const,
+    progress: 75,
+    riskRating: 'High' as const,
+    frequency: 'Monthly'
   },
   {
     id: 'C002',
+    name: 'Revenue Recognition',
     title: 'Revenue Recognition',
     description: 'Proper revenue recognition in accordance with GAAP',
+    controlFamily: 'Financial Controls',
     owner: 'Accounting Team',
     tester: 'Mike Rodriguez',
     dueDate: '2024-03-10',
     deadline: '2024-03-18',
-    status: 'evidence_review',
-    progress: 60
+    status: 'evidence_review' as const,
+    progress: 60,
+    riskRating: 'Medium' as const,
+    frequency: 'Monthly'
   },
   {
     id: 'C003',
+    name: 'Inventory Count',
     title: 'Inventory Count',
     description: 'Physical inventory count and reconciliation procedures',
+    controlFamily: 'Operational Controls',
     owner: 'Operations Team',
     tester: 'Jennifer Liu',
     dueDate: '2024-03-20',
     deadline: '2024-03-25',
-    status: 'not_started',
-    progress: 0
+    status: 'not-started' as const,
+    progress: 0,
+    riskRating: 'Low' as const,
+    frequency: 'Quarterly'
   }
 ];
 
-export const mockEvidence = [
-  { id: '1', fileName: 'Bank_Statement_Feb_2024.pdf' },
-  { id: '2', fileName: 'Reconciliation_Worksheet.xlsx' },
-  { id: '3', fileName: 'Supporting_Documentation.pdf' }
-];
-
-export const mockPendingItems = [
-  { id: '1', item: 'Explanation for reconciling item #3' },
-  { id: '2', item: 'Updated cash flow projection' }
-];
-
 export const STATUS_LABELS = {
-  not_started: 'Not Started',
-  walkthrough: 'Walkthrough',
-  design_review: 'Design Review',
-  testing: 'Testing',
-  evidence_review: 'Evidence Review',
-  management_review: 'Management Review',
-  deficiency_review: 'Deficiency Review',
-  completed: 'Completed'
-} as const;
+  'not-started': 'Not Started',
+  'walkthrough': 'Walkthrough',
+  'design_review': 'Design Review',
+  'testing': 'Testing',
+  'evidence_review': 'Evidence Review',
+  'management_review': 'Management Review',
+  'deficiency_review': 'Deficiency Review',
+  'completed': 'Completed'
+};
 
 export const STATUS_COLORS = {
-  not_started: 'bg-gray-100 text-gray-800',
-  walkthrough: 'bg-blue-100 text-blue-800',
-  design_review: 'bg-yellow-100 text-yellow-800',
-  testing: 'bg-orange-100 text-orange-800',
-  evidence_review: 'bg-purple-100 text-purple-800',
-  management_review: 'bg-indigo-100 text-indigo-800',
-  deficiency_review: 'bg-red-100 text-red-800',
-  completed: 'bg-green-100 text-green-800'
-} as const;
+  'not-started': 'bg-gray-100 text-gray-800',
+  'walkthrough': 'bg-blue-100 text-blue-800',
+  'design_review': 'bg-yellow-100 text-yellow-800',
+  'testing': 'bg-orange-100 text-orange-800',
+  'evidence_review': 'bg-purple-100 text-purple-800',
+  'management_review': 'bg-indigo-100 text-indigo-800',
+  'deficiency_review': 'bg-red-100 text-red-800',
+  'completed': 'bg-green-100 text-green-800'
+};
 
 export const AUDIT_TYPE_OPTIONS = [
-  'Agreed-Upon Procedures (AUP)',
-  'Compliance Audit',
-  'Construction Audit',
-  'Cybersecurity Audit',
-  'Due Diligence Audit (e.g. M&A)',
-  'Environmental Audit',
-  'Financial Statement Audit',
-  'Forensic Audit',
-  'Human Resources (HR) Audit',
-  'Information Systems Audit (IT Audit)',
-  'Internal Audit',
-  'Operational Audit',
-  'Performance Audit',
-  'Procurement Audit',
-  'Quality Assurance (QA) Audit',
-  'Risk Assessment Audit',
-  'SOC 1 (System and Organization Controls – Financial Reporting)',
-  'SOC 2 (System and Organization Controls – Trust Services Criteria)',
-  'SOC 3 (General SOC Report)',
-  'Tax Audit'
+  { value: 'soc1', label: 'SOC 1' },
+  { value: 'soc2', label: 'SOC 2' },
+  { value: 'financial', label: 'Financial Statement Audit' },
+  { value: 'compliance', label: 'Compliance Audit' },
+  { value: 'operational', label: 'Operational Audit' }
 ];
 
 export const AUDIT_MODULES = [
-  { id: 'control-mapping', name: 'Control Mapping', desc: 'ITGCs and Manual Controls' },
-  { id: 'key-reports', name: 'Key Reports', desc: 'Business Reports & Queries' },
-  { id: 'itacs', name: 'ITACs', desc: 'Automated Controls' },
-  { id: 'walkthroughs', name: 'Walkthroughs', desc: 'Process Documentation' },
-  { id: 'key-systems', name: 'Key Systems', desc: 'ERP & IT Systems' },
-  { id: 'findings-log', name: 'Findings Log', desc: 'Issues & Remediation' }
+  { id: 'control-mapping', name: 'Control Mapping', description: 'ITGCs and Manual Controls' },
+  { id: 'key-reports', name: 'Key Reports', description: 'Business Reports & Queries' },
+  { id: 'itacs', name: 'ITACs', description: 'Automated Controls' },
+  { id: 'walkthroughs', name: 'Walkthroughs', description: 'Process Documentation' },
+  { id: 'key-systems', name: 'Key Systems', description: 'ERP & IT Systems' },
+  { id: 'findings-log', name: 'Findings Log', description: 'Issues & Remediation' }
 ];
-
-// Mock Excel data for simulation
-export const MOCK_EXCEL_DATA = {
-  'ITGC Controls': [
-    {
-      'Control ID': 'ITGC-001',
-      'Control Title': 'User Access Management',
-      'Control Description': 'Management reviews user access rights quarterly',
-      'Risk Rating': 'High',
-      'Control Type': 'Manual',
-      'Frequency': 'Quarterly',
-      'Owner': 'IT Security Team'
-    },
-    {
-      'Control ID': 'ITGC-002',
-      'Control Title': 'Data Backup Procedures',
-      'Control Description': 'Automated daily backups are performed and backup logs are reviewed weekly',
-      'Risk Rating': 'Medium',
-      'Control Type': 'Automated',
-      'Frequency': 'Daily',
-      'Owner': 'IT Operations'
-    }
-  ],
-  'ITACs': [
-    {
-      'ITAC ID': 'ITAC-001',
-      'Control Name': 'Automated Invoice Matching',
-      'Description': 'System automatically matches purchase orders',
-      'Application': 'ERP System',
-      'Control Type': 'Preventive',
-      'Frequency': 'Real-time',
-      'Owner': 'Accounts Payable'
-    },
-    {
-      'ITAC ID': 'ITAC-002',
-      'Control Name': 'Duplicate Payment Prevention',
-      'Description': 'System prevents duplicate payments by checking invoice numbers',
-      'Application': 'Payment System',
-      'Control Type': 'Preventive',
-      'Frequency': 'Real-time',
-      'Owner': 'Treasury'
-    }
-  ],
-  'Key Reports': [
-    {
-      'Report ID': 'RPT-001',
-      'Report Name': 'Daily Cash Position Report',
-      'Description': 'Daily report showing cash balances',
-      'Owner': 'Treasury',
-      'Application': 'Cash Management System',
-      'Frequency': 'Daily'
-    },
-    {
-      'Report ID': 'RPT-002',
-      'Report Name': 'Monthly Financial Close Report',
-      'Description': 'Comprehensive financial close status and key metrics',
-      'Owner': 'Financial Reporting',
-      'Application': 'ERP System',
-      'Frequency': 'Monthly'
-    }
-  ]
-};
