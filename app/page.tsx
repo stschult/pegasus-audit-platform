@@ -100,8 +100,8 @@ export default function AuditPlatform() {
         name: file.name,
         size: file.size,
         type: file.type,
-        uploadDate: new Date(),
-        status: 'processing' as const
+        uploadDate: new Date(), // Keep as Date object
+        status: 'processing'
       };
       
       newFiles.push(uploadedFile);
@@ -125,7 +125,7 @@ export default function AuditPlatform() {
         setUploadedFiles(prev => 
           prev.map(f => 
             f.id === uploadedFile.id 
-              ? { ...f, status: 'completed' as const }
+              ? { ...f, status: 'completed' }
               : f
           )
         );
@@ -133,7 +133,7 @@ export default function AuditPlatform() {
         setUploadedFiles(prev => 
           prev.map(f => 
             f.id === uploadedFile.id 
-              ? { ...f, status: 'error' as const }
+              ? { ...f, status: 'error' }
               : f
           )
         );

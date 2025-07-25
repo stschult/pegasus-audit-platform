@@ -51,7 +51,7 @@ export interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  uploadDate: Date;
+  uploadDate: Date;  // Keep as Date object
   status: 'processing' | 'completed' | 'error';
 }
 
