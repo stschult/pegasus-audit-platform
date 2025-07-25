@@ -100,7 +100,7 @@ export default function AuditPlatform() {
         name: file.name,
         size: file.size,
         type: file.type,
-        uploadDate: new Date(), // Keep as Date object
+        uploadDate: new Date().toISOString(), // Convert to ISO string
         status: 'processing'
       };
       
