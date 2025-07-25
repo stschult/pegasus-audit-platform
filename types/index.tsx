@@ -1,4 +1,5 @@
 // types/index.tsx
+
 export interface User {
   id: string;
   name: string;
@@ -21,29 +22,31 @@ export interface Audit {
 export interface Control {
   id: string;
   name: string;
-  title: string;
   description: string;
-  controlFamily: string;
-  owner: string;
-  tester: string;
-  dueDate: string;
-  deadline: string;
   status: 'not-started' | 'walkthrough' | 'design_review' | 'testing' | 'evidence_review' | 'management_review' | 'deficiency_review' | 'completed';
-  progress: number;
-  riskRating: 'High' | 'Medium' | 'Low';
-  frequency: string;
+  riskRating: string;
+  controlFamily: string;
+  lastUpdated: string;
+  evidence: any[];
+  // Additional properties to match the interface
+  title?: string;
+  owner?: string;
+  tester?: string;
+  dueDate?: string;
+  testing?: any;
+  deficiencies?: any[];
+  notes?: string;
 }
 
 export interface AuditFormData {
-  clientName: string;
-  relationshipOwner: string;
-  auditOwner: string;
-  website: string;
-  clientId: string;
-  auditTypes: string[];
+  companyName: string;
+  clientLead: string;
+  auditLead: string;
+  auditType: string;
   startDate: string;
   endDate: string;
-  yearEnd: string;
+  website: string;
+  clientId: string;
 }
 
 export interface UploadedFile {
@@ -51,40 +54,41 @@ export interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  uploadDate: string;  // Changed to string to resolve the conflict
-  status: 'processing' | 'completed' | 'error';
+  uploadDate: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
 }
 
 export interface ExtractedControl {
   id: string;
   name: string;
   description: string;
-  riskRating: 'High' | 'Medium' | 'Low';
+  riskRating: string;
   controlFamily: string;
-  controlType: string;
-  frequency: string;
-  owner: string;
+  testingStatus: string;
 }
 
 export interface ExtractedITAC {
   id: string;
-  name: string;
-  systemName: string;
-  description: string;
+  system: string;
   controlType: string;
-  riskLevel: 'High' | 'Medium' | 'Low';
   owner: string;
-  frequency: string;
+  riskLevel: string;
+  testingStatus: string;
+  name?: string;
+  description?: string;
+  systemName?: string;
+  frequency?: string;
 }
 
 export interface ExtractedKeyReport {
   id: string;
   name: string;
-  description: string;
-  period: string;
+  frequency: string;
   source: string;
   owner: string;
-  frequency: string;
+  reviewStatus: string;
+  description?: string;
+  period?: string;
 }
 
 export interface ExcelData {

@@ -1,4 +1,5 @@
 // lib/constants.tsx
+
 export const mockUser = {
   id: '1',
   name: 'Sarah Johnson',
@@ -40,49 +41,46 @@ export const mockAudits = [
 
 export const mockControls = [
   {
-    id: 'C001',
-    name: 'Cash Reconciliation',
-    title: 'Cash Reconciliation',
-    description: 'Monthly bank reconciliation procedures and documentation',
-    controlFamily: 'Financial Controls',
-    owner: 'Finance Team',
-    tester: 'Sarah Johnson',
-    dueDate: '2024-03-15',
-    deadline: '2024-03-20',
+    id: 'CTRL-001',
+    name: 'User Access Management',
+    description: 'Controls for managing user access to systems',
     status: 'testing' as const,
-    progress: 75,
-    riskRating: 'High' as const,
-    frequency: 'Monthly'
+    riskRating: 'High',
+    controlFamily: 'Access Controls',
+    lastUpdated: '2024-01-15',
+    evidence: [],
+    title: 'User Access Management Control',
+    owner: 'IT Security Team',
+    tester: 'Sarah Johnson',
+    dueDate: '2024-02-15'
   },
   {
-    id: 'C002',
-    name: 'Revenue Recognition',
-    title: 'Revenue Recognition',
-    description: 'Proper revenue recognition in accordance with GAAP',
-    controlFamily: 'Financial Controls',
-    owner: 'Accounting Team',
-    tester: 'Mike Rodriguez',
-    dueDate: '2024-03-10',
-    deadline: '2024-03-18',
-    status: 'evidence_review' as const,
-    progress: 60,
-    riskRating: 'Medium' as const,
-    frequency: 'Monthly'
+    id: 'CTRL-002',
+    name: 'Data Backup Procedures',
+    description: 'Regular backup and recovery procedures',
+    status: 'completed' as const,
+    riskRating: 'Medium',
+    controlFamily: 'Data Management',
+    lastUpdated: '2024-01-10',
+    evidence: [],
+    title: 'Data Backup Control',
+    owner: 'IT Operations',
+    tester: 'Mike Davis',
+    dueDate: '2024-01-30'
   },
   {
-    id: 'C003',
-    name: 'Inventory Count',
-    title: 'Inventory Count',
-    description: 'Physical inventory count and reconciliation procedures',
-    controlFamily: 'Operational Controls',
-    owner: 'Operations Team',
-    tester: 'Jennifer Liu',
-    dueDate: '2024-03-20',
-    deadline: '2024-03-25',
+    id: 'CTRL-003',
+    name: 'Change Management Process',
+    description: 'Formal change control procedures',
     status: 'not-started' as const,
-    progress: 0,
-    riskRating: 'Low' as const,
-    frequency: 'Quarterly'
+    riskRating: 'High',
+    controlFamily: 'Change Management',
+    lastUpdated: '2024-01-08',
+    evidence: [],
+    title: 'Change Management Control',
+    owner: 'IT Management',
+    tester: 'Lisa Chen',
+    dueDate: '2024-02-28'
   }
 ];
 
@@ -109,18 +107,86 @@ export const STATUS_COLORS = {
 };
 
 export const AUDIT_TYPE_OPTIONS = [
-  { value: 'soc1', label: 'SOC 1' },
-  { value: 'soc2', label: 'SOC 2' },
-  { value: 'financial', label: 'Financial Statement Audit' },
-  { value: 'compliance', label: 'Compliance Audit' },
-  { value: 'operational', label: 'Operational Audit' }
+  'SOC 1 Type II',
+  'SOC 2 Type II',
+  'ISO 27001',
+  'PCI DSS',
+  'HIPAA',
+  'Custom Framework'
 ];
 
+// Updated module names - Control Mapping renamed to ITGCs
 export const AUDIT_MODULES = [
-  { id: 'control-mapping', name: 'Control Mapping', description: 'ITGCs and Manual Controls' },
-  { id: 'key-reports', name: 'Key Reports', description: 'Business Reports & Queries' },
-  { id: 'itacs', name: 'ITACs', description: 'Automated Controls' },
-  { id: 'walkthroughs', name: 'Walkthroughs', description: 'Process Documentation' },
-  { id: 'key-systems', name: 'Key Systems', description: 'ERP & IT Systems' },
-  { id: 'findings-log', name: 'Findings Log', description: 'Issues & Remediation' }
+  {
+    id: 'itgcs',
+    name: 'ITGCs',
+    description: 'IT General Controls - Infrastructure, access, and change management controls'
+  },
+  {
+    id: 'key-reports',
+    name: 'Key Reports',
+    description: 'Critical reports used in financial reporting processes'
+  },
+  {
+    id: 'itacs',
+    name: 'ITACs',
+    description: 'IT Application Controls - Automated controls within applications'
+  },
+  {
+    id: 'walkthroughs',
+    name: 'Walkthroughs',
+    description: 'Process walkthroughs and documentation'
+  },
+  {
+    id: 'key-systems',
+    name: 'Key Systems',
+    description: 'Critical systems and infrastructure components'
+  },
+  {
+    id: 'findings-log',
+    name: 'Findings Log',
+    description: 'Track and manage audit findings and remediation'
+  }
 ];
+
+// Mock Excel data for demonstration
+export const MOCK_EXCEL_DATA = {
+  controls: [
+    {
+      id: 'ITGC-001',
+      name: 'Network Security Controls',
+      description: 'Firewall and network access controls',
+      riskRating: 'High',
+      controlFamily: 'Network Security',
+      testingStatus: 'Not Started'
+    },
+    {
+      id: 'ITGC-002', 
+      name: 'User Access Management',
+      description: 'User provisioning and access review controls',
+      riskRating: 'High',
+      controlFamily: 'Access Management',
+      testingStatus: 'Planning'
+    }
+  ],
+  itacs: [
+    {
+      id: 'ITAC-001',
+      system: 'SAP ERP',
+      controlType: 'Automated Approval',
+      owner: 'Finance Team',
+      riskLevel: 'Medium',
+      testingStatus: 'Not Started'
+    }
+  ],
+  keyReports: [
+    {
+      id: 'RPT-001',
+      name: 'Daily Sales Report',
+      frequency: 'Daily',
+      source: 'CRM System',
+      owner: 'Sales Manager',
+      reviewStatus: 'Pending'
+    }
+  ]
+};

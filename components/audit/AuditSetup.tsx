@@ -1,64 +1,100 @@
 // components/audit/AuditSetup.tsx
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, Upload, FileText, CheckCircle, Clock, XCircle, 
   Settings, Eye, Building2, AlertTriangle 
 } from 'lucide-react';
 import { 
-  Audit, UploadedFile, ExtractedControl, ExtractedITAC, ExtractedKeyReport 
+  Audit, UploadedFile, ExtractedControl, ExtractedITAC, ExtractedKeyReport, ExcelData 
 } from '../../types';
 import { AUDIT_MODULES } from '../../lib/constants';
-import { formatFileSize, getRiskRatingColor } from '../../lib/utils';
+import { parseExcelFile, isValidExcelFile, formatFileSize } from '../../lib/utils';
 
 interface AuditSetupProps {
   selectedAudit: Audit;
-  currentModule: string;
-  onModuleChange: (moduleId: string) => void;
   onBack: () => void;
+  currentModule: string;
+  onModuleChange: (module: string) => void;
   uploadedFiles: UploadedFile[];
-  extractedData: {
-    controls: ExtractedControl[];
-    itacs: ExtractedITAC[];
-    keyReports: ExtractedKeyReport[];
-  };
-  onFileUpload: (files: FileList) => void;
+  extractedData: ExcelData;
+  onFileUpload: (files: File[]) => void;
 }
 
 export default function AuditSetup({
   selectedAudit,
+  onBack,
   currentModule,
   onModuleChange,
-  onBack,
   uploadedFiles,
   extractedData,
   onFileUpload
 }: AuditSetupProps) {
-  const getModuleIcon = (moduleId: string) => {
-    switch (moduleId) {
-      case 'control-mapping': return <CheckCircle className="h-5 w-5" />;
-      case 'key-reports': return <FileText className="h-5 w-5" />;
-      case 'itacs': return <Settings className="h-5 w-5" />;
-      case 'walkthroughs': return <Eye className="h-5 w-5" />;
-      case 'key-systems': return <Building2 className="h-5 w-5" />;
-      case 'findings-log': return <AlertTriangle className="h-5 w-5" />;
-      default: return <FileText className="h-5 w-5" />;
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    await handleFileUpload(files);
+  };
+
+  const handleFileUpload = async (files: File[]) => {
+    setIsUploading(true);
+    try {
+      onFileUpload(files);
+    } catch (error) {
+      console.error('File upload error:', error);
+    } finally {
+      setIsUploading(false);
     }
   };
 
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      handleFileUpload(files);
+    }
+  };
+
+  // Map module IDs to their corresponding icons
+  const getModuleIcon = (moduleId: string) => {
+    const iconMap: { [key: string]: React.ComponentType<any> } = {
+      'itgcs': CheckCircle,
+      'key-reports': FileText,
+      'itacs': Settings,
+      'walkthroughs': Eye,
+      'key-systems': Building2,
+      'findings-log': AlertTriangle
+    };
+    return iconMap[moduleId] || CheckCircle;
+  };
+
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center gap-4 mb-8">
-        <button
+    <div className="px-4 py-6 sm:px-0">
+      <div className="flex items-center gap-4 mb-6">
+        <button 
           onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{selectedAudit.clientName} - Audit Setup</h1>
-          <p className="text-gray-600 mt-2">Configure audit modules and upload supporting documents</p>
+          <h1 className="text-2xl font-bold text-gray-900">{selectedAudit.clientName} - Audit Setup</h1>
+          <p className="text-gray-600">Configure audit modules and upload documentation</p>
         </div>
       </div>
 
@@ -66,46 +102,82 @@ export default function AuditSetup({
       <div className="bg-white rounded-lg shadow-md mb-6">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
-            {AUDIT_MODULES.map((module) => (
-              <button
-                key={module.id}
-                onClick={() => onModuleChange(module.id)}
-                className={`flex items-center gap-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                  currentModule === module.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {getModuleIcon(module.id)}
-                {module.name}
-              </button>
-            ))}
+            {AUDIT_MODULES.map((module) => {
+              const IconComponent = getModuleIcon(module.id);
+              const isActive = currentModule === module.id;
+              
+              // Count items for badge
+              let itemCount = 0;
+              if (module.id === 'itgcs') itemCount = extractedData.controls.length;
+              else if (module.id === 'itacs') itemCount = extractedData.itacs.length;
+              else if (module.id === 'key-reports') itemCount = extractedData.keyReports.length;
+              
+              return (
+                <button
+                  key={module.id}
+                  onClick={() => onModuleChange(module.id)}
+                  className={`flex items-center space-x-2 py-4 border-b-2 font-medium text-sm transition-colors ${
+                    isActive
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <IconComponent className="h-5 w-5" />
+                  <span>{module.name}</span>
+                  {itemCount > 0 && (
+                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                      {itemCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
         {/* Module Content */}
         <div className="p-6">
-          {currentModule === 'control-mapping' && (
+          {currentModule === 'itgcs' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Control Mapping & Documentation</h3>
-              <p className="text-gray-600 mb-6">Upload Excel files containing control mappings, test procedures, and supporting documentation.</p>
-              
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">IT General Controls</h2>
+                <div className="text-sm text-gray-500">
+                  {extractedData.controls.length} controls found
+                </div>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Upload and manage IT General Controls including access controls, change management, and infrastructure controls.
+              </p>
+
               {/* File Upload Area */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h4 className="text-lg font-medium text-gray-900 mb-2">Upload Control Files</h4>
-                <p className="text-gray-600 mb-4">Drag and drop Excel files here, or click to browse</p>
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragOver 
+                    ? 'border-blue-400 bg-blue-50' 
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <Upload className={`h-12 w-12 mx-auto mb-4 ${isDragOver ? 'text-blue-500' : 'text-gray-400'}`} />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {isUploading ? 'Processing files...' : 'Upload Excel Files'}
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Drag and drop your Excel files here, or click to browse
+                </p>
                 <input
                   type="file"
                   multiple
                   accept=".xlsx,.xls"
-                  onChange={(e) => e.target.files && onFileUpload(e.target.files)}
+                  onChange={handleFileInput}
                   className="hidden"
-                  id="control-file-upload"
+                  id="file-upload"
                 />
                 <label
-                  htmlFor="control-file-upload"
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 cursor-pointer inline-block"
+                  htmlFor="file-upload"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
                 >
                   Choose Files
                 </label>
@@ -113,23 +185,22 @@ export default function AuditSetup({
 
               {/* Uploaded Files */}
               {uploadedFiles.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-medium mb-3">Uploaded Files</h4>
-                  <div className="space-y-2">
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Uploaded Files</h3>
+                  <div className="space-y-3">
                     {uploadedFiles.map((file) => (
                       <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center space-x-3">
                           <FileText className="h-5 w-5 text-gray-400" />
                           <div>
-                            <p className="font-medium">{file.name}</p>
-                            <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
+                            <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {file.status === 'processing' && <Clock className="h-4 w-4 text-yellow-500" />}
-                          {file.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
-                          {file.status === 'error' && <XCircle className="h-4 w-4 text-red-500" />}
-                          <span className="text-sm text-gray-500 capitalize">{file.status}</span>
+                        <div className="flex items-center space-x-2">
+                          {file.status === 'completed' && <CheckCircle className="h-5 w-5 text-green-500" />}
+                          {file.status === 'processing' && <Clock className="h-5 w-5 text-blue-500" />}
+                          {file.status === 'error' && <XCircle className="h-5 w-5 text-red-500" />}
                         </div>
                       </div>
                     ))}
@@ -137,29 +208,29 @@ export default function AuditSetup({
                 </div>
               )}
 
-              {/* Extracted Controls Preview */}
+              {/* Extracted Controls */}
               {extractedData.controls.length > 0 && (
-                <div>
-                  <h4 className="font-medium mb-3">Extracted Controls ({extractedData.controls.length})</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {extractedData.controls.slice(0, 4).map((control) => (
-                      <div key={control.id} className="p-4 border border-gray-200 rounded-lg">
-                        <h5 className="font-medium mb-2">{control.name}</h5>
-                        <p className="text-sm text-gray-600 mb-2">{control.description}</p>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getRiskRatingColor(control.riskRating)}`}>
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Extracted ITGCs ({extractedData.controls.length})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {extractedData.controls.map((control) => (
+                      <div key={control.id} className="bg-green-50 border border-green-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">{control.name}</h4>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800`}>
                             {control.riskRating}
                           </span>
+                        </div>
+                        <p className="text-xs text-gray-600 mb-3 line-clamp-2">{control.description}</p>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">ID: {control.id}</span>
                           <span className="text-xs text-gray-500">{control.controlFamily}</span>
                         </div>
                       </div>
                     ))}
                   </div>
-                  {extractedData.controls.length > 4 && (
-                    <p className="text-sm text-gray-500 mt-3">
-                      And {extractedData.controls.length - 4} more controls...
-                    </p>
-                  )}
                 </div>
               )}
             </div>
@@ -167,29 +238,53 @@ export default function AuditSetup({
 
           {currentModule === 'key-reports' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Key Reports & Financial Statements</h3>
-              <p className="text-gray-600 mb-6">Review and analyze key financial reports and statements.</p>
-              
-              {extractedData.keyReports.length > 0 ? (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Key Reports</h2>
+                <div className="text-sm text-gray-500">
+                  {extractedData.keyReports.length} reports found
+                </div>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Critical reports used in financial reporting processes and controls.
+              </p>
+
+              {/* Extracted Reports */}
+              {extractedData.keyReports.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {extractedData.keyReports.map((report) => (
-                    <div key={report.id} className="p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText className="h-5 w-5 text-blue-500" />
-                        <h5 className="font-medium">{report.name}</h5>
+                    <div key={report.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">{report.name}</h4>
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                          {report.reviewStatus}
+                        </span>
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">{report.description}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">{report.period}</span>
-                        <span className="text-xs text-gray-500">{report.source}</span>
+                      <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                        {(report as any).description || `${report.frequency} report from ${report.source}`}
+                      </p>
+                      <div className="space-y-1 text-xs text-gray-500">
+                        <div className="flex justify-between">
+                          <span>Frequency:</span>
+                          <span>{(report as any).period || report.frequency}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Owner:</span>
+                          <span>{report.owner}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Source:</span>
+                          <span>{report.source}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
+              )}
+
+              {extractedData.keyReports.length === 0 && (
                 <div className="text-center py-8">
-                  <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No key reports extracted yet. Upload Excel files in Control Mapping to see data here.</p>
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No key reports extracted yet. Upload Excel files in the ITGCs tab.</p>
                 </div>
               )}
             </div>
@@ -197,41 +292,61 @@ export default function AuditSetup({
 
           {currentModule === 'itacs' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">ITACs (IT Application Controls)</h3>
-              <p className="text-gray-600 mb-6">Information Technology Application Controls and system configurations.</p>
-              
-              {extractedData.itacs.length > 0 ? (
-                <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">IT Application Controls</h2>
+                <div className="text-sm text-gray-500">
+                  {extractedData.itacs.length} ITACs found
+                </div>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Automated controls within applications including data validations, calculations, and workflows.
+              </p>
+
+              {/* Extracted ITACs */}
+              {extractedData.itacs.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {extractedData.itacs.map((itac) => (
-                    <div key={itac.id} className="p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h5 className="font-medium">{itac.systemName}</h5>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          itac.riskLevel === 'High' ? 'bg-red-100 text-red-800' :
-                          itac.riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
-                          {itac.riskLevel} Risk
+                    <div key={itac.id} className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">
+                          {(itac as any).name || itac.controlType}
+                        </h4>
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                          {itac.riskLevel}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">{itac.description}</p>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Control Type:</span>
-                          <span className="ml-2 font-medium">{itac.controlType}</span>
+                      <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                        {(itac as any).description || `${itac.controlType} control in ${itac.system}`}
+                      </p>
+                      <div className="space-y-1 text-xs text-gray-500">
+                        <div className="flex justify-between">
+                          <span>System:</span>
+                          <span>{(itac as any).systemName || itac.system}</span>
                         </div>
-                        <div>
-                          <span className="text-gray-500">Owner:</span>
-                          <span className="ml-2 font-medium">{itac.owner}</span>
+                        <div className="flex justify-between">
+                          <span>Owner:</span>
+                          <span>{itac.owner}</span>
                         </div>
+                        <div className="flex justify-between">
+                          <span>Type:</span>
+                          <span>{itac.controlType}</span>
+                        </div>
+                        {(itac as any).frequency && (
+                          <div className="flex justify-between">
+                            <span>Frequency:</span>
+                            <span>{(itac as any).frequency}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
+              )}
+
+              {extractedData.itacs.length === 0 && (
                 <div className="text-center py-8">
-                  <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No ITACs extracted yet. Upload Excel files in Control Mapping to see data here.</p>
+                  <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No ITACs extracted yet. Upload Excel files in the ITGCs tab.</p>
                 </div>
               )}
             </div>
@@ -239,36 +354,42 @@ export default function AuditSetup({
 
           {currentModule === 'walkthroughs' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Process Walkthroughs</h3>
-              <p className="text-gray-600 mb-6">Document process walkthroughs and control observations.</p>
-              
-              <div className="text-center py-8">
-                <Eye className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Walkthrough documentation will be available in future updates.</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Process Walkthroughs</h2>
+              <p className="text-gray-600 mb-6">
+                Document and review business process walkthroughs and control procedures.
+              </p>
+              <div className="text-center py-12">
+                <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Walkthroughs Module</h3>
+                <p className="text-gray-600">This module will be available in a future update.</p>
               </div>
             </div>
           )}
 
           {currentModule === 'key-systems' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Key Systems & Applications</h3>
-              <p className="text-gray-600 mb-6">Inventory and assessment of key business systems.</p>
-              
-              <div className="text-center py-8">
-                <Building2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Key systems inventory will be available in future updates.</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Key Systems</h2>
+              <p className="text-gray-600 mb-6">
+                Critical systems and infrastructure components in scope for the audit.
+              </p>
+              <div className="text-center py-12">
+                <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Key Systems Module</h3>
+                <p className="text-gray-600">This module will be available in a future update.</p>
               </div>
             </div>
           )}
 
           {currentModule === 'findings-log' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Findings & Issues Log</h3>
-              <p className="text-gray-600 mb-6">Track audit findings, deficiencies, and remediation status.</p>
-              
-              <div className="text-center py-8">
-                <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Findings log will be available in future updates.</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Findings Log</h2>
+              <p className="text-gray-600 mb-6">
+                Track and manage audit findings, exceptions, and remediation efforts.
+              </p>
+              <div className="text-center py-12">
+                <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Findings Log Module</h3>
+                <p className="text-gray-600">This module will be available in a future update.</p>
               </div>
             </div>
           )}

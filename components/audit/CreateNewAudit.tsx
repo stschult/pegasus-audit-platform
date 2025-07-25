@@ -59,7 +59,15 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    // Allow submission even with empty fields for testing
+    const submissionData = {
+      ...formData,
+      companyName: formData.companyName || 'Test Company',
+      clientLead: formData.clientLead || 'Test Client Lead',
+      auditLead: formData.auditLead || 'Test Audit Lead',
+      clientUniqueId: formData.clientUniqueId || 'TEST-' + Date.now()
+    };
+    onSubmit(submissionData);
   };
 
   return (
@@ -72,22 +80,24 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h2 className="text-2xl font-bold text-gray-900">Create New Audit</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Create New Audit</h2>
+            <p className="text-sm text-gray-500 mt-1">Testing Mode - All fields optional</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Company Name *
+                Company Name
               </label>
               <input
                 type="text"
-                required
                 value={formData.companyName}
                 onChange={(e) => handleInputChange('companyName', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter company name"
+                placeholder="Enter company name (optional)"
               />
             </div>
 
@@ -106,53 +116,49 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Client Unique ID *
+                Client Unique ID
               </label>
               <input
                 type="text"
-                required
                 value={formData.clientUniqueId}
                 onChange={(e) => handleInputChange('clientUniqueId', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., COMP-2024-001"
+                placeholder="e.g., COMP-2024-001 (auto-generated if empty)"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Client Lead *
+                Client Lead
               </label>
               <input
                 type="text"
-                required
                 value={formData.clientLead}
                 onChange={(e) => handleInputChange('clientLead', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter client lead name"
+                placeholder="Enter client lead name (optional)"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Audit Lead *
+                Audit Lead
               </label>
               <input
                 type="text"
-                required
                 value={formData.auditLead}
                 onChange={(e) => handleInputChange('auditLead', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter audit lead name"
+                placeholder="Enter audit lead name (optional)"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Audit Start Date *
+                Audit Start Date
               </label>
               <input
                 type="date"
-                required
                 value={formData.auditStartDate}
                 onChange={(e) => handleInputChange('auditStartDate', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -161,11 +167,10 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Expected Completion Date *
+                Expected Completion Date
               </label>
               <input
                 type="date"
-                required
                 value={formData.expectedCompletionDate}
                 onChange={(e) => handleInputChange('expectedCompletionDate', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -175,7 +180,7 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Audit Types *
+              Audit Types
             </label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-4">
               {auditTypeOptions.map((type) => (
@@ -190,6 +195,7 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
                 </label>
               ))}
             </div>
+            <p className="text-sm text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple (optional)</p>
           </div>
 
           <div className="flex justify-end gap-4 pt-6">
