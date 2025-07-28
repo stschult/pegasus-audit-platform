@@ -178,7 +178,7 @@ function detectSheetTypeByHeaders(headers: string[]): 'control' | 'itac' | 'repo
 }
 
 /**
- * Extract control from row data - Fixed for your headers
+ * Extract control from row data - FIXED to exclude headers and empty rows
  */
 function extractControlFromRow(rowData: any, headers: string[]): ExtractedControl | null {
   try {
@@ -202,24 +202,36 @@ function extractControlFromRow(rowData: any, headers: string[]): ExtractedContro
     // Extract data
     const controlId = idField ? rowData[idField] : `CTRL-${Math.random().toString(36).substr(2, 6)}`;
     const controlName = nameField ? rowData[nameField] : null;
+    const riskRating = riskField ? rowData[riskField] : 'Medium';
     
-    // If we have a meaningful control description, create a control
-    if (controlName && controlName.trim() !== '' && controlName.trim() !== 'undefined') {
-      const control = {
-        id: controlId || 'Generated ID',
-        name: controlName,
-        description: controlName, // Use description as name since that's what you have
-        riskRating: rowData[riskField] || 'Medium',
-        controlFamily: 'ITGC',
-        testingStatus: 'Not Started'
-      };
-      
-      console.log('✅ Successfully extracted control:', control.name);
-      return control;
+    // FIXED: Filter out header rows and empty/invalid data
+    if (!controlName || 
+        controlName.trim() === '' || 
+        controlName.trim() === 'undefined' ||
+        controlName.toLowerCase().includes('control description') || // Skip header row
+        controlName.toLowerCase().includes('description') || // Skip header variations
+        controlName.toLowerCase() === 'control' ||
+        controlName.length < 5 || // Skip very short descriptions
+        controlId === 'Generated ID' || // Skip generated IDs for headers
+        /^(ref #|control #|id)$/i.test(controlName) || // Skip if it's just a header value
+        controlName.toLowerCase() === controlName.toLowerCase().replace(/[a-z]/g, '') // Skip if no letters (just symbols/numbers)
+    ) {
+      console.log('⚠️ Skipping invalid/header row:', controlName);
+      return null;
     }
     
-    console.log('⚠️ Could not extract meaningful control data - no valid description');
-    return null;
+    // If we have a meaningful control description, create a control
+    const control = {
+      id: controlId || 'Generated ID',
+      name: controlName,
+      description: controlName, // Use description as name since that's what you have
+      riskRating: riskRating,
+      controlFamily: 'ITGC',
+      testingStatus: 'Not Started'
+    };
+    
+    console.log('✅ Successfully extracted control:', control.name);
+    return control;
   } catch (error) {
     console.error('❌ Error extracting control:', error);
     return null;

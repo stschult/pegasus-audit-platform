@@ -62,12 +62,26 @@ export default function AuditDashboard() {
   
   // AuditSetup specific state
   const [currentModule, setCurrentModule] = useState('itgcs');
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [extractedData, setExtractedData] = useState<ExcelData>({
-    controls: [],
-    itacs: [],
-    keyReports: []
-  });
+  
+  // FIXED: Audit-scoped data instead of global state
+  const [auditDataMap, setAuditDataMap] = useState<Record<string, ExcelData>>({});
+  const [auditFilesMap, setAuditFilesMap] = useState<Record<string, UploadedFile[]>>({});
+
+  // Helper to get current audit's data
+  const getCurrentAuditData = (): ExcelData => {
+    if (!selectedAudit) {
+      return { controls: [], itacs: [], keyReports: [] };
+    }
+    return auditDataMap[selectedAudit.id] || { controls: [], itacs: [], keyReports: [] };
+  };
+
+  // Helper to get current audit's files
+  const getCurrentAuditFiles = (): UploadedFile[] => {
+    if (!selectedAudit) {
+      return [];
+    }
+    return auditFilesMap[selectedAudit.id] || [];
+  };
 
   const handleLogin = (email: string, password: string) => {
     setUser(mockUser);
@@ -118,15 +132,32 @@ export default function AuditDashboard() {
     }
   };
 
+  // FIXED: Audit-scoped file upload
   const handleFileUpload = async (files: File[]) => {
+    if (!selectedAudit) {
+      alert('Please select an audit first');
+      return;
+    }
+
     try {
-      // Process each file
       for (const file of files) {
         if (isValidExcelFile(file)) {
           const data = await parseExcelFile(file);
-          setExtractedData(data);
           
-          // Add to uploaded files list
+          // Store data for THIS SPECIFIC AUDIT ONLY
+          setAuditDataMap(prev => ({
+            ...prev,
+            [selectedAudit.id]: data
+          }));
+          
+          console.log(`✅ Data uploaded for ${selectedAudit.clientName} ONLY`);
+          console.log(`📊 ${selectedAudit.clientName} now has:`, {
+            controls: data.controls.length,
+            itacs: data.itacs.length,
+            keyReports: data.keyReports.length
+          });
+          
+          // Add to uploaded files list FOR THIS AUDIT ONLY
           const uploadedFile: UploadedFile = {
             id: `file-${Date.now()}`,
             name: file.name,
@@ -135,7 +166,13 @@ export default function AuditDashboard() {
             uploadDate: new Date().toISOString(),
             status: 'completed'
           };
-          setUploadedFiles(prev => [...prev, uploadedFile]);
+          
+          setAuditFilesMap(prev => ({
+            ...prev,
+            [selectedAudit.id]: [...(prev[selectedAudit.id] || []), uploadedFile]
+          }));
+          
+          console.log(`📁 File added to ${selectedAudit.clientName} ONLY`);
         }
       }
     } catch (error) {
@@ -180,8 +217,8 @@ export default function AuditDashboard() {
             onBack={() => setCurrentView('dashboard')}
             currentModule={currentModule}
             onModuleChange={setCurrentModule}
-            uploadedFiles={uploadedFiles}
-            extractedData={extractedData}
+            uploadedFiles={getCurrentAuditFiles()} // Use audit-specific files
+            extractedData={getCurrentAuditData()} // Use audit-specific data
             onFileUpload={handleFileUpload}
           />
         )}
