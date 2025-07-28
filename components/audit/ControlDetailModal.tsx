@@ -1,72 +1,38 @@
-const express = require('express');
-const twilio = require('twilio');
-const app = express();
+'use client';
 
-app.use(express.urlencoded({ extended: true }));
+import React from 'react';
+import { X } from 'lucide-react';
 
-const DEMO_DATA = {
-  jim: {
-    overallStatus: "You have 6 active audits. 4 are progressing well, but 2 need immediate attention.",
-    redFlags: [
-      "TechFlow Solutions SOC 2 audit has 3 critical controls overdue by 4 days",
-      "RetailMax discovered a significant finding in payment processing controls"
-    ]
-  }
-};
+interface ControlDetailModalProps {
+  control: any;
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdateControl: (controlId: string, updates: any) => void;
+  onEvidenceUpload: (controlId: string, files: File[]) => void;
+}
 
-app.post('/voice', (req, res) => {
-  console.log('Voice endpoint called');
-  const twiml = new twilio.twiml.VoiceResponse();
-  
-  twiml.say({
-    voice: 'alice',
-    rate: '95%'
-  }, 'Hi Jim! It has been a few days since you had an update, so let me give you an overall assessment, followed by the major red flags you need to address.');
-  
-  twiml.pause({ length: 1 });
-  
-  twiml.say({
-    voice: 'alice',
-    rate: '95%'
-  }, DEMO_DATA.jim.overallStatus + ' TechFlow Solutions is your biggest concern right now.');
-  
-  twiml.pause({ length: 1 });
-  
-  twiml.say({
-    voice: 'alice',
-    rate: '95%'
-  }, 'Red flag one: ' + DEMO_DATA.jim.redFlags[0]);
-  
-  twiml.pause({ length: 1 });
-  
-  twiml.say({
-    voice: 'alice',
-    rate: '95%'
-  }, 'Red flag two: ' + DEMO_DATA.jim.redFlags[1]);
-  
-  twiml.say({
-    voice: 'alice',
-    rate: '95%'
-  }, 'Thanks for calling, Jim. Focus on TechFlow today!');
-  
-  twiml.hangup();
-  
-  res.type('text/xml');
-  res.send(twiml.toString());
-});
+export default function ControlDetailModal({
+  control,
+  isOpen,
+  onClose,
+  onUpdateControl,
+  onEvidenceUpload
+}: ControlDetailModalProps) {
+  if (!isOpen) return null;
 
-app.get('/health', (req, res) => {
-  console.log('Health check called');
-  res.json({ status: 'healthy', partner: 'Jim Foley' });
-});
-
-app.get('/', (req, res) => {
-  console.log('Root endpoint called');
-  res.json({ message: 'Jim Foley Voice Demo is running', status: 'ok' });
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('Jim Foley Voice Demo running on port ' + PORT);
-  console.log('Server listening on all interfaces (0.0.0.0)');
-});
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">{control?.name || 'Control Details'}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="p-6">
+          <p>Control details will be shown here.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
