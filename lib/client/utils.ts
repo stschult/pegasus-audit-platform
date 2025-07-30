@@ -46,9 +46,10 @@ export const formatSampleId = (controlId: string, index: number): string => {
 export const getStatusColor = (status: SampleRequest['status']) => {
   const colors = {
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    'in-progress': 'bg-blue-100 text-blue-800 border-blue-200',
-    completed: 'bg-green-100 text-green-800 border-green-200',
-    rejected: 'bg-red-100 text-red-800 border-red-200'
+    evidence_uploaded: 'bg-blue-100 text-blue-800 border-blue-200',
+    under_review: 'bg-purple-100 text-purple-800 border-purple-200',
+    reviewed: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    approved: 'bg-green-100 text-green-800 border-green-200'
   };
   return colors[status] || colors.pending;
 };
@@ -58,14 +59,14 @@ export const getPriorityColor = (priority: SampleRequest['priority']) => {
     low: 'text-gray-600',
     medium: 'text-yellow-600',
     high: 'text-orange-600',
-    critical: 'text-red-600'
+    urgent: 'text-red-600'
   };
   return colors[priority] || colors.medium;
 };
 
 export const calculateProgress = (samples: SampleRequest[]): number => {
   if (samples.length === 0) return 0;
-  const completed = samples.filter(s => s.status === 'completed').length;
+  const completed = samples.filter(s => s.status === 'approved').length;
   return Math.round((completed / samples.length) * 100);
 };
 
@@ -74,80 +75,90 @@ export const generateMockData = (): SampleRequest[] => {
     {
       id: 'USR-001',
       controlId: 'CC1.1',
-      title: 'User Access Review',
+      controlTitle: 'User Access Review',
+      controlType: 'Access Management',
+      riskRating: 'High',
+      frequency: 'Monthly',
       description: 'Review user access permissions for Q3 2024',
-      sampleItem: 'john.doe@techcorp.com - Admin Access',
-      period: 'Q3 2024',
       dueDate: '2024-12-15',
       status: 'pending',
       priority: 'high',
-      evidenceRequested: [
+      requiredEvidence: [
         'User access report showing current permissions',
         'Business justification for admin access',
         'Manager approval for access level'
       ],
-      files: [],
-      comments: []
+      uploadedFiles: [],
+      comments: [],
+      assignedTo: 'auditor@company.com',
+      createdDate: '2024-11-01',
+      completionPercentage: 0
     },
     {
       id: 'CHG-002', 
       controlId: 'CC2.1',
-      title: 'Change Management',
+      controlTitle: 'Change Management Process',
+      controlType: 'Change Management',
+      riskRating: 'Medium',
+      frequency: 'Quarterly',
       description: 'Validate change management process for system updates',
-      sampleItem: 'Production Database Update - Oct 15, 2024',
-      period: 'Q4 2024',
       dueDate: '2024-12-20',
-      status: 'in-progress',
+      status: 'evidence_uploaded',
       priority: 'medium',
-      evidenceRequested: [
+      requiredEvidence: [
         'Change request form with approvals',
         'Testing documentation',
         'Rollback procedures',
         'Post-implementation validation'
       ],
-      files: [
+      uploadedFiles: [
         {
           id: '1',
           name: 'change-request-form.pdf',
           size: 1024000,
           type: 'application/pdf',
-          uploadedAt: '2024-11-15T10:00:00Z',
+          uploadDate: '2024-11-15T10:00:00Z',
           uploadedBy: 'Sarah Chen'
         }
       ],
       comments: [
         {
           id: '1',
-          text: 'Initial change request uploaded. Still need testing docs.',
           author: 'Sarah Chen',
+          authorRole: 'client',
+          message: 'Initial change request uploaded. Still need testing docs.',
           timestamp: '2024-11-15T10:05:00Z',
-          type: 'client'
+          isRead: false
         }
-      ]
+      ],
+      assignedTo: 'sarah.chen@company.com',
+      createdDate: '2024-11-01',
+      completionPercentage: 60
     },
     {
       id: 'BAK-003',
       controlId: 'CC3.2', 
-      title: 'Data Backup Verification',
+      controlTitle: 'Data Backup Verification',
+      controlType: 'Data Backup',
+      riskRating: 'High',
+      frequency: 'Weekly',
       description: 'Verify data backup completeness and recovery procedures',
-      sampleItem: 'Customer Database Backup - November 1, 2024',
-      period: 'Q4 2024',
       dueDate: '2024-12-25',
-      status: 'completed',
-      priority: 'critical',
-      evidenceRequested: [
+      status: 'approved',
+      priority: 'urgent',
+      requiredEvidence: [
         'Backup log files',
         'Recovery test documentation',
         'Backup integrity verification',
         'Off-site storage confirmation'
       ],
-      files: [
+      uploadedFiles: [
         {
           id: '2',
           name: 'backup-logs-nov-2024.xlsx',
           size: 512000,
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          uploadedAt: '2024-11-20T14:30:00Z',
+          uploadDate: '2024-11-20T14:30:00Z',
           uploadedBy: 'Mike Johnson'
         },
         {
@@ -155,26 +166,31 @@ export const generateMockData = (): SampleRequest[] => {
           name: 'recovery-test-results.pdf',
           size: 2048000,
           type: 'application/pdf',
-          uploadedAt: '2024-11-21T09:15:00Z',
+          uploadDate: '2024-11-21T09:15:00Z',
           uploadedBy: 'Mike Johnson'
         }
       ],
       comments: [
         {
           id: '2',
-          text: 'All backup documentation provided and verified.',
           author: 'Mike Johnson',
+          authorRole: 'client',
+          message: 'All backup documentation provided and verified.',
           timestamp: '2024-11-21T09:20:00Z',
-          type: 'client'
+          isRead: true
         },
         {
           id: '3',
-          text: 'Excellent documentation. Sample testing complete.',
           author: 'Tom Cruise',
+          authorRole: 'auditor',
+          message: 'Excellent documentation. Sample testing complete.',
           timestamp: '2024-11-22T11:00:00Z',
-          type: 'auditor'
+          isRead: true
         }
-      ]
+      ],
+      assignedTo: 'mike.johnson@company.com',
+      createdDate: '2024-11-01',
+      completionPercentage: 100
     }
   ];
 
@@ -182,22 +198,26 @@ export const generateMockData = (): SampleRequest[] => {
 };
 
 export const getDashboardStats = (samples: SampleRequest[]): DashboardStats => {
-  const totalSamples = samples.length;
-  const completedSamples = samples.filter(s => s.status === 'completed').length;
-  const pendingSamples = samples.filter(s => s.status === 'pending').length;
-  const overdueSamples = samples.filter(s => {
+  const totalRequests = samples.length;
+  const completed = samples.filter(s => s.status === 'approved').length;
+  const pending = samples.filter(s => s.status === 'pending').length;
+  const overdue = samples.filter(s => {
     const dueDate = new Date(s.dueDate);
     const today = new Date();
-    return s.status !== 'completed' && dueDate < today;
+    return s.status !== 'approved' && dueDate < today;
   }).length;
 
-  const progressPercentage = totalSamples > 0 ? Math.round((completedSamples / totalSamples) * 100) : 0;
+  const avgCompletion = totalRequests > 0 ? 
+    Math.round(samples.reduce((sum, s) => sum + s.completionPercentage, 0) / totalRequests) : 0;
+  
+  const highPriority = samples.filter(s => s.priority === 'high' || s.priority === 'urgent').length;
 
   return {
-    totalSamples,
-    completedSamples, 
-    pendingSamples,
-    overdueSamples,
-    progressPercentage
+    totalRequests,
+    completed,
+    pending,
+    overdue,
+    avgCompletion,
+    highPriority
   };
 };
