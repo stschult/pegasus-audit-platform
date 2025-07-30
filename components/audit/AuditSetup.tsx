@@ -1,4 +1,4 @@
-// components/audit/AuditSetup.tsx - UPDATED
+// components/audit/AuditSetup.tsx - UPDATED with Short Titles
 'use client';
 
 import React, { useState } from 'react';
@@ -42,6 +42,53 @@ export default function AuditSetup({
   React.useEffect(() => {
     setControls(extractedData.controls);
   }, [extractedData.controls]);
+
+  // Extract key concept from control description for display
+  const getControlKeyConcept = (control: ExtractedControl) => {
+    const description = (control as any)['control description'] || control.description || control.name || '';
+    
+    if (!description) return control.name || 'Control';
+    
+    // Common ITGC key concepts to look for
+    const keyTerms = [
+      { terms: ['backup', 'back-up', 'back up'], concept: 'Data Backup & Recovery' },
+      { terms: ['password', 'complexity'], concept: 'Password Management' },
+      { terms: ['access', 'user account', 'privileged access'], concept: 'Access Control' },
+      { terms: ['change management', 'change control', 'program changes'], concept: 'Change Management' },
+      { terms: ['security patch', 'patching'], concept: 'Security Patching' },
+      { terms: ['monitoring', 'log review'], concept: 'System Monitoring' },
+      { terms: ['firewall', 'network'], concept: 'Network Security' },
+      { terms: ['antivirus', 'malware'], concept: 'Malware Protection' },
+      { terms: ['data encryption', 'encryption'], concept: 'Data Encryption' },
+      { terms: ['vulnerability', 'scan'], concept: 'Vulnerability Management' },
+      { terms: ['incident', 'response'], concept: 'Incident Response' },
+      { terms: ['recoverability', 'recovery'], concept: 'Data Recovery' },
+      { terms: ['segregation', 'separation'], concept: 'Segregation of Duties' },
+      { terms: ['physical access', 'servers'], concept: 'Physical Security' },
+      { terms: ['testing', 'program changes'], concept: 'Change Testing' },
+      { terms: ['approval', 'production'], concept: 'Change Approval' },
+      { terms: ['user acceptance testing'], concept: 'User Testing' },
+      { terms: ['data conversion'], concept: 'Data Migration' },
+      { terms: ['systems implementation'], concept: 'System Implementation' },
+      { terms: ['termination', 'disabled'], concept: 'User Termination' },
+      { terms: ['contractor', 'expiration'], concept: 'Contractor Access' },
+      { terms: ['unique', 'user id'], concept: 'User Identification' }
+    ];
+    
+    const lowerDesc = description.toLowerCase();
+    
+    for (const keyTerm of keyTerms) {
+      for (const term of keyTerm.terms) {
+        if (lowerDesc.includes(term)) {
+          return keyTerm.concept;
+        }
+      }
+    }
+    
+    // If no key terms found, use first few words
+    const words = description.split(' ');
+    return words.length > 4 ? words.slice(0, 4).join(' ') + '...' : description;
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -261,41 +308,57 @@ export default function AuditSetup({
                 </div>
               )}
 
-              {/* Extracted Controls - NOW CLICKABLE */}
+              {/* Extracted Controls - ENHANCED WITH SHORT TITLES */}
               {controls.length > 0 && (
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Extracted ITGCs ({controls.length})
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {controls.map((control) => (
-                      <div 
-                        key={control.id} 
-                        onClick={() => handleControlClick(control)}
-                        className="bg-green-50 border border-green-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-green-100 hover:border-green-300"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">{control.name}</h4>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800`}>
-                            {control.riskRating}
-                          </span>
+                    {controls.map((control) => {
+                      const displayTitle = getControlKeyConcept(control);
+                      const originalDescription = (control as any)['control description'] || control.description || '';
+                      
+                      return (
+                        <div 
+                          key={control.id} 
+                          onClick={() => handleControlClick(control)}
+                          className="bg-green-50 border border-green-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-green-100 hover:border-green-300"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            {/* SHORT TITLE INSTEAD OF LONG NAME */}
+                            <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">{displayTitle}</h4>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800`}>
+                              {control.riskRating}
+                            </span>
+                          </div>
+                          
+                          {/* Show brief description preview */}
+                          <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                            {originalDescription.length > 80 
+                              ? originalDescription.substring(0, 80) + '...' 
+                              : originalDescription
+                            }
+                          </p>
+                          
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-500">ID: {control.id}</span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(control.testingStatus)}`}>
+                              {control.testingStatus}
+                            </span>
+                          </div>
+                          
+                          <div className="mt-2 text-xs text-gray-500">
+                            <span>{control.controlFamily}</span>
+                          </div>
+                          
+                          {/* Click indicator */}
+                          <div className="mt-2 text-xs text-blue-600 font-medium">
+                            Click to manage evidence →
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-600 mb-3 line-clamp-2">{control.description}</p>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-500">ID: {control.id}</span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(control.testingStatus)}`}>
-                            {control.testingStatus}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500">
-                          <span>{control.controlFamily}</span>
-                        </div>
-                        {/* Click indicator */}
-                        <div className="mt-2 text-xs text-blue-600 font-medium">
-                          Click to manage evidence →
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

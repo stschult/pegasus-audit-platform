@@ -49,8 +49,9 @@ model Audit {
   auditOwner          User     @relation("AuditOwner", fields: [auditOwnerId], references: [id])
   auditOwnerId        String
   
-  // Controls
-  controls Control[]
+  // Controls and Sample Requests
+  controls       Control[]
+  sampleRequests SampleRequest[]
   
   @@map("audits")
 }
@@ -83,13 +84,43 @@ model Control {
   tester               User?   @relation("TesterAssigned", fields: [testerId], references: [id])
   testerId             String?
 
-  // Evidence
-  evidence Evidence[]
+  // Evidence and Sample Requests
+  evidence       Evidence[]
+  sampleRequests SampleRequest[]
   
   // Status history
   statusHistory StatusHistory[]
   
   @@map("controls")
+}
+
+model SampleRequest {
+  id               String   @id @default(cuid())
+  sampleId         String   // From SampleDate.id (e.g., "SAMPLE-2024-Q1-001")
+  controlId        String
+  controlTitle     String   // Cached title for performance
+  controlType      String   @default("ITGC") // Access Management, Change Management, etc.
+  riskRating       String   @default("Medium") // High, Medium, Low
+  frequency        String   @default("Monthly") // Daily, Weekly, Monthly, Quarterly
+  dueDate          DateTime // From SampleDate.date
+  quarter          String   // From SampleDate.quarter (e.g., "2024-Q1")
+  status           String   @default("pending") // pending, evidence_uploaded, under_review, reviewed, approved
+  priority         String   @default("medium") // urgent, high, medium, low
+  description      String?
+  requiredEvidence String   @default("[]") // JSON array of required evidence items
+  uploadedFiles    String   @default("[]") // JSON array of uploaded file info
+  comments         String   @default("[]") // JSON array of comments
+  assignedTo       String?  // Team or person assigned
+  completionPercentage Int  @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relationships
+  control Control @relation(fields: [controlId], references: [id])
+  audit   Audit   @relation(fields: [auditId], references: [id])
+  auditId String
+  
+  @@map("sample_requests")
 }
 
 model Evidence {
