@@ -258,4 +258,4 @@ export const getDaysDifference = (date1: string, date2?: string): number => {
   const d2 = date2 ? new Date(date2) : new Date();
   const timeDiff = Math.abs(d2.getTime() - d1.getTime());
   return Math.ceil(timeDiff / (1000 * 3600 * 24));
-};
+};// Force deployment Thu Jul 31 07:43:15 PDT 2025
