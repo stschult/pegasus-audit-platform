@@ -243,14 +243,17 @@ export const isOverdue = (dueDate: string, status?: string): boolean => {
   return due < today;
 };
 
-export const getRiskColor = (priority: SampleRequest['priority']): string => {
+export const getRiskColor = (priority: SampleRequest['priority'] | string): string => {
+  // Convert to lowercase to handle both "High" and "high" formats
+  const normalizedPriority = priority?.toLowerCase() as SampleRequest['priority'];
+  
   const colors = {
     'urgent': 'bg-red-100 text-red-800',
     'high': 'bg-orange-100 text-orange-800', 
     'medium': 'bg-yellow-100 text-yellow-800',
     'low': 'bg-green-100 text-green-800'
   };
-  return colors[priority] || 'bg-gray-100 text-gray-800';
+  return colors[normalizedPriority] || 'bg-gray-100 text-gray-800';
 };
 
 export const getDaysDifference = (date1: string, date2?: string): number => {
@@ -258,4 +261,4 @@ export const getDaysDifference = (date1: string, date2?: string): number => {
   const d2 = date2 ? new Date(date2) : new Date();
   const timeDiff = Math.abs(d2.getTime() - d1.getTime());
   return Math.ceil(timeDiff / (1000 * 3600 * 24));
-};// Force deployment Thu Jul 31 07:43:15 PDT 2025
+};
