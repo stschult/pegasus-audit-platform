@@ -221,3 +221,38 @@ export const getDashboardStats = (samples: SampleRequest[]): DashboardStats => {
     highPriority
   };
 };
+
+// Add these missing exports to fix the build errors:
+
+export const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+export const calculateDashboardStats = getDashboardStats; // Alias for existing function
+
+export const isOverdue = (dueDate: string): boolean => {
+  const today = new Date();
+  const due = new Date(dueDate);
+  return due < today;
+};
+
+export const getRiskColor = (priority: SampleRequest['priority']): string => {
+  const colors = {
+    'urgent': 'bg-red-100 text-red-800',
+    'high': 'bg-orange-100 text-orange-800', 
+    'medium': 'bg-yellow-100 text-yellow-800',
+    'low': 'bg-green-100 text-green-800'
+  };
+  return colors[priority] || 'bg-gray-100 text-gray-800';
+};
+
+export const getDaysDifference = (date1: string, date2?: string): number => {
+  const d1 = new Date(date1);
+  const d2 = date2 ? new Date(date2) : new Date();
+  const timeDiff = Math.abs(d2.getTime() - d1.getTime());
+  return Math.ceil(timeDiff / (1000 * 3600 * 24));
+};
