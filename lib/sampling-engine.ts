@@ -74,6 +74,12 @@ export class AuditSamplingEngine {
       config.controlFrequency
     );
 
+    // Safety check: if no available dates, return empty array
+    if (availableDates.length === 0) {
+      console.warn(`No available dates for quarter ${quarter.quarter}`);
+      return [];
+    }
+
     const minInterval = config.minimumInterval || 
       this.MIN_INTERVAL_DAYS[config.controlFrequency];
 
@@ -85,11 +91,19 @@ export class AuditSamplingEngine {
       const randomIndex = Math.floor(rng() * availableDates.length);
       const candidateDate = availableDates[randomIndex];
 
+      // Safety check: ensure candidateDate exists
+      if (!candidateDate) {
+        attempts++;
+        continue;
+      }
+
       // Check minimum interval constraint
-      const tooClose = selectedDates.some(existingDate => 
-        Math.abs(candidateDate.getTime() - existingDate.getTime()) < 
-        (minInterval * 24 * 60 * 60 * 1000)
-      );
+      const tooClose = selectedDates.some(existingDate => {
+        // Additional safety check for existingDate
+        if (!existingDate) return false;
+        return Math.abs(candidateDate.getTime() - existingDate.getTime()) < 
+          (minInterval * 24 * 60 * 60 * 1000);
+      });
 
       if (!tooClose) {
         selectedDates.push(candidateDate);
@@ -118,6 +132,12 @@ export class AuditSamplingEngine {
   ): Date[] {
     const dates: Date[] = [];
     const current = new Date(startDate);
+
+    // Safety check: ensure valid date range
+    if (!startDate || !endDate || startDate > endDate) {
+      console.warn('Invalid date range provided to getAvailableDates');
+      return dates;
+    }
 
     while (current <= endDate) {
       // Skip weekends for daily/weekly controls (business days only)
