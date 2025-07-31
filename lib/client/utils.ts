@@ -234,7 +234,10 @@ export const formatFileSize = (bytes: number): string => {
 
 export const calculateDashboardStats = getDashboardStats; // Alias for existing function
 
-export const isOverdue = (dueDate: string): boolean => {
+export const isOverdue = (dueDate: string, status?: string): boolean => {
+  // Don't consider approved items as overdue
+  if (status === 'approved') return false;
+  
   const today = new Date();
   const due = new Date(dueDate);
   return due < today;
