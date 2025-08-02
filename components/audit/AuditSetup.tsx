@@ -476,9 +476,62 @@ export default function AuditSetup({
     }
   };
 
-  const handleControlClick = (control: ExtractedControl) => {
-    console.log('🖱️ Control clicked:', control.name);
-    setSelectedControl(control);
+  const handleControlClick = (control: ExtractedControl, index?: number) => {
+    const enhancedTitle = getControlKeyConcept(control);
+    const originalDescription = (control as any)['control description'] || control.description || '';
+    const enhancedDescription = originalDescription && !originalDescription.includes('Description for control')
+      ? originalDescription 
+      : `Ensures ${enhancedTitle.toLowerCase()} are properly implemented and monitored within the organization's IT environment.`;
+    
+    const enhancedControl = {
+      ...control,
+      enhancedTitle: enhancedTitle,
+      enhancedDescription: enhancedDescription,
+      // FIXED: Ensure risk rating is properly mapped
+      riskRating: control.riskRating || control['pwc risk rating (h/m/l)'] || 'M'
+    };
+    
+    setSelectedControl(enhancedControl);
+    setIsModalOpen(true);
+  };
+
+  const handleKeyReportClick = (report: ExtractedKeyReport, index: number) => {
+    // Create a mock control object for the modal using report data
+    const reportAsControl = {
+      id: report.id,
+      name: getKeyReportTitle(report, index),
+      description: (report as any).description || `${report.frequency} report from ${report.source} used for financial reporting and audit testing procedures.`,
+      enhancedTitle: getKeyReportTitle(report, index),
+      enhancedDescription: (report as any).description || `${report.frequency} report from ${report.source} used for financial reporting and audit testing procedures.`,
+      riskRating: 'Medium',
+      controlFamily: 'Key Reports',
+      testingStatus: 'Not Started',
+      frequency: report.frequency,
+      owner: report.owner,
+      source: report.source
+    };
+    
+    setSelectedControl(reportAsControl);
+    setIsModalOpen(true);
+  };
+
+  const handleITACClick = (itac: ExtractedITAC, index: number) => {
+    // Create a mock control object for the modal using ITAC data
+    const itacAsControl = {
+      id: itac.id,
+      name: getITACTitle(itac, index),
+      description: (itac as any).description || `Automated ${itac.controlType} control within ${itac.system} ensuring data accuracy and processing integrity.`,
+      enhancedTitle: getITACTitle(itac, index),
+      enhancedDescription: (itac as any).description || `Automated ${itac.controlType} control within ${itac.system} ensuring data accuracy and processing integrity.`,
+      riskRating: 'Medium',
+      controlFamily: 'ITACs',
+      testingStatus: itac.testingStatus,
+      controlType: itac.controlType,
+      system: itac.system,
+      owner: itac.owner
+    };
+    
+    setSelectedControl(itacAsControl);
     setIsModalOpen(true);
   };
 
@@ -812,7 +865,11 @@ export default function AuditSetup({
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {controls.map((control) => {
                       const displayTitle = getControlKeyConcept(control);
+                      // FIXED: Get meaningful description instead of placeholder text
                       const originalDescription = (control as any)['control description'] || control.description || '';
+                      const displayDescription = originalDescription && !originalDescription.includes('Description for control') 
+                        ? originalDescription 
+                        : `Ensures ${displayTitle.toLowerCase()} are properly implemented and monitored within the organization's IT environment.`;
                       
                       return (
                         <div 
@@ -828,9 +885,9 @@ export default function AuditSetup({
                           </div>
                           
                           <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                            {originalDescription.length > 80 
-                              ? originalDescription.substring(0, 80) + '...' 
-                              : originalDescription
+                            {displayDescription.length > 80 
+                              ? displayDescription.substring(0, 80) + '...' 
+                              : displayDescription
                             }
                           </p>
                           
@@ -891,11 +948,15 @@ export default function AuditSetup({
                 </div>
               )}
 
-              {/* FIXED: Key Reports Cards with Status */}
+              {/* FIXED: Key Reports Cards with Status and Click Handlers */}
               {extractedData.keyReports.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {extractedData.keyReports.map((report, index) => (
-                    <div key={report.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-blue-100 hover:border-blue-300">
+                    <div 
+                      key={report.id} 
+                      onClick={() => handleKeyReportClick(report, index)}
+                      className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-blue-100 hover:border-blue-300"
+                    >
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">
                           {getKeyReportTitle(report, index)}
@@ -905,7 +966,7 @@ export default function AuditSetup({
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                        {(report as any).description || `${report.frequency} report from ${report.source}`}
+                        {(report as any).description || `${report.frequency} report from ${report.source} used for financial reporting and audit testing procedures.`}
                       </p>
                       <div className="space-y-1 text-xs text-gray-500">
                         <div className="flex justify-between">
@@ -967,11 +1028,15 @@ export default function AuditSetup({
                 </div>
               )}
 
-              {/* FIXED: ITAC Cards with Status */}
+              {/* FIXED: ITAC Cards with Status and Click Handlers */}
               {extractedData.itacs.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {extractedData.itacs.map((itac, index) => (
-                    <div key={itac.id} className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-purple-100 hover:border-purple-300">
+                    <div 
+                      key={itac.id} 
+                      onClick={() => handleITACClick(itac, index)}
+                      className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-purple-100 hover:border-purple-300"
+                    >
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">
                           {getITACTitle(itac, index)}
@@ -981,7 +1046,7 @@ export default function AuditSetup({
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                        {(itac as any).description || `${itac.controlType} control in ${itac.system}`}
+                        {(itac as any).description || `Automated ${itac.controlType} control within ${itac.system} ensuring data accuracy and processing integrity.`}
                       </p>
                       <div className="space-y-1 text-xs text-gray-500">
                         <div className="flex justify-between">
