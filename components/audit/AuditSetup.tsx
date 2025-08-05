@@ -687,11 +687,13 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
               {currentData?.keyReports && currentData.keyReports.length > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {currentData.keyReports.map((report, index) => {
+                    const statusInfo = getSamplingStatusInfo(report.id);
+                    
                     return (
                       <div
                         key={report.id || index}
                         onClick={() => handleKeyReportClick(report)}
-                        className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:border-green-300 hover:shadow-lg transition-all group overflow-hidden"
+                        className={`bg-white border rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden ${statusInfo.borderClass}`}
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -705,9 +707,18 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
                               <p className="text-sm text-gray-500 truncate">{report.reportType || 'Standard Report'}</p>
                             </div>
                           </div>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${getRiskLevelColor(report.criticality || 'medium')}`}>
-                            {(report.criticality || 'MEDIUM').toUpperCase()}
-                          </span>
+                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${getRiskLevelColor(report.criticality || 'medium')}`}>
+                              {(report.criticality || 'MEDIUM').toUpperCase()}
+                            </span>
+                            {/* ✅ REAL-TIME STATUS BADGE FOR KEY REPORTS */}
+                            {statusInfo.status !== 'No Sampling Required' && (
+                              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
+                                {statusInfo.icon && <statusInfo.icon size={12} />}
+                                <span className="truncate max-w-24">{statusInfo.status}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         
                         <p className="text-sm text-gray-600 mb-4 line-clamp-2">
@@ -814,12 +825,76 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
             </div>
           )}
 
-          {/* Walkthroughs Tab */}
+          {/* Walkthroughs Tab - ✅ FIXED: Added red borders for auditor action required */}
           {currentModule === 'walkthroughs' && (
-            <WalkthroughTab
-              applications={currentData?.applications || []}
-              onWalkthroughClick={handleWalkthroughClick}
-            />
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Walkthroughs ({currentData?.applications?.length || 0})</h2>
+                <button className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Walkthroughs
+                </button>
+              </div>
+
+              {currentData?.applications && currentData.applications.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {currentData.applications.map((application, index) => {
+                    return (
+                      <div
+                        key={application.id || index}
+                        onClick={() => handleWalkthroughClick(application)}
+                        className="bg-white border-red-400 border-2 rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors flex-shrink-0">
+                              <Eye className="h-5 w-5 text-orange-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 group-hover:text-orange-700 transition-colors truncate">
+                                {application.name || `Application ${index + 1}`}
+                              </h3>
+                              <p className="text-sm text-gray-500 truncate">{application.category || 'Business Application'}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(application.riskLevel || 'medium')}`}>
+                              {(application.riskLevel || 'MEDIUM').toUpperCase()}
+                            </span>
+                            {/* ✅ WALKTHROUGH ACTION REQUIRED BADGE */}
+                            <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-red-100 text-red-700">
+                              <AlertTriangle size={12} />
+                              <span className="truncate max-w-24">Action Required</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                          {application.description || 'Business application requiring walkthrough documentation and process review'}
+                        </p>
+                        
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
+                            <Users className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">{application.owner || 'Business Owner'}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-orange-600 group-hover:text-orange-700 flex-shrink-0">
+                            <Eye className="h-4 w-4" />
+                            <span>View Details</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Applications Found</h3>
+                  <p className="text-gray-600">Upload an Excel file to load walkthrough applications</p>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Other module placeholders */}
