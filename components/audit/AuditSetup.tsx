@@ -1,29 +1,180 @@
-// components/audit/AuditSetup.tsx - FIXED VERSION
+// components/audit/AuditSetup.tsx - FIXED WITH CORRECT FIELD NAMES FOR TITLES
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
-  ArrowLeft, Upload, FileText, CheckCircle, Clock, XCircle, 
-  Settings, Eye, Building2, AlertTriangle, Home, BarChart3
+  ArrowLeft, 
+  Upload, 
+  FileText, 
+  CheckCircle, 
+  Settings, 
+  Building2, 
+  AlertTriangle, 
+  Home, 
+  X, 
+  Download, 
+  Eye, 
+  User, 
+  Calendar, 
+  Shield, 
+  Database, 
+  Lock, 
+  Monitor, 
+  FileCheck, 
+  AlertCircle, 
+  Clock, 
+  Target, 
+  Activity, 
+  Zap, 
+  BookOpen, 
+  Users, 
+  CheckSquare, 
+  XCircle,
+  Send
 } from 'lucide-react';
-import { 
-  Audit, UploadedFile, ExtractedControl, ExtractedITAC, ExtractedKeyReport, ExcelData 
-} from '../../types';
-import { AUDIT_MODULES } from '../../lib/constants';
-import { parseExcelFile, isValidExcelFile, formatFileSize } from '../../lib/utils';
+import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile } from '../../types';
+import { useAppState } from '../../hooks/useAppState';
 import ControlDetailModal from './ControlDetailModal';
+import WalkthroughTab from './WalkthroughTab';
+import WalkthroughDetailModal from './WalkthroughDetailModal';
 
 interface AuditSetupProps {
-  selectedAudit: Audit;
+  selectedAudit: {
+    id: string;
+    companyName: string;
+    clientId: string;
+    website?: string;
+    clientLead?: string;
+    auditLead?: string;
+    auditType: string;
+    riskAssessment: string;
+    startDate: string;
+    endDate: string;
+    status: string;
+    createdAt: string;
+  };
   onBack: () => void;
   currentModule: string;
-  onModuleChange: (module: string) => void;
+  onModuleChange: (moduleId: string) => void;
   uploadedFiles: UploadedFile[];
-  extractedData: ExcelData;
-  onFileUpload: (files: File[]) => void;
+  extractedData: ExcelData | null;
+  onFileUpload: (files: FileList) => void;
 }
 
-export default function AuditSetup({
+// Add type for walkthrough applications
+interface Application {
+  id: string;
+  name: string;
+  description: string;
+  riskLevel: string;
+  owner: string;
+  category: string;
+}
+
+const AUDIT_MODULES = [
+  { id: 'overview', name: 'Overview', icon: Home },
+  { id: 'itgcs', name: 'ITGCs', icon: CheckCircle },
+  { id: 'key-reports', name: 'Key Reports', icon: FileText },
+  { id: 'itacs', name: 'ITACs', icon: Settings },
+  { id: 'walkthroughs', name: 'Walkthroughs', icon: Eye },
+  { id: 'key-systems', name: 'Key Systems', icon: Building2 },
+  { id: 'findings-log', name: 'Findings Log', icon: AlertTriangle }
+];
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const getShortDescriptionForParsing = (fullDescription: string): string => {
+  if (!fullDescription || typeof fullDescription !== 'string') {
+    return 'Unknown Control';
+  }
+
+  const description = fullDescription.toLowerCase().trim();
+  
+  // Comprehensive mapping with multiple keywords
+  const keywordMappings = [
+    {
+      keywords: ['backup', 'restore', 'recovery', 'disaster recovery', 'data backup'],
+      result: 'System Backups'
+    },
+    {
+      keywords: ['access', 'user access', 'authorization', 'authentication', 'login', 'password', 'account'],
+      result: 'Access Review'
+    },
+    {
+      keywords: ['physical', 'facility', 'security', 'badge', 'premises', 'building'],
+      result: 'Physical Security'
+    },
+    {
+      keywords: ['change management', 'change control', 'system changes', 'configuration'],
+      result: 'Change Management'
+    },
+    {
+      keywords: ['segregation', 'separation', 'duties', 'roles', 'responsibilities'],
+      result: 'Segregation of Duties'
+    },
+    {
+      keywords: ['monitoring', 'logging', 'audit trail', 'system monitoring', 'log review'],
+      result: 'System Monitoring'
+    },
+    {
+      keywords: ['network', 'firewall', 'intrusion', 'network security', 'perimeter'],
+      result: 'Network Security'
+    },
+    {
+      keywords: ['patch', 'update', 'vulnerability', 'security patch', 'system update'],
+      result: 'Patch Management'
+    },
+    {
+      keywords: ['incident', 'response', 'incident management', 'security incident'],
+      result: 'Incident Response'
+    },
+    {
+      keywords: ['data retention', 'data disposal', 'data destruction', 'retention policy'],
+      result: 'Data Retention'
+    },
+    {
+      keywords: ['encryption', 'cryptography', 'data encryption', 'secure transmission'],
+      result: 'Data Encryption'
+    },
+    {
+      keywords: ['business continuity', 'continuity planning', 'disaster planning'],
+      result: 'Business Continuity'
+    },
+    {
+      keywords: ['antivirus', 'malware', 'virus protection', 'endpoint protection'],
+      result: 'Malware Protection'
+    },
+    {
+      keywords: ['capacity', 'performance', 'system capacity', 'resource management'],
+      result: 'Capacity Management'
+    },
+    {
+      keywords: ['job scheduling', 'batch processing', 'automated jobs', 'job control'],
+      result: 'Job Scheduling'
+    }
+  ];
+
+  // Find the best match
+  for (const mapping of keywordMappings) {
+    for (const keyword of mapping.keywords) {
+      if (description.includes(keyword)) {
+        return mapping.result;
+      }
+    }
+  }
+
+  // Fallback: use first few words if no match found
+  const words = fullDescription.split(' ').slice(0, 3).join(' ');
+  return words || 'System Control';
+};
+
+const AuditSetup: React.FC<AuditSetupProps> = ({
   selectedAudit,
   onBack,
   currentModule,
@@ -31,540 +182,178 @@ export default function AuditSetup({
   uploadedFiles,
   extractedData,
   onFileUpload
-}: AuditSetupProps) {
+}) => {
+  // ✅ FIXED: Get current React state AND refresh function for real-time status updates
+  const {
+    // GET CURRENT STATE FOR REAL-TIME UPDATES
+    evidenceRequests,
+    evidenceSubmissions,
+    samplingConfigs,
+    generatedSamples,
+    // Sampling functionality
+    handleSamplingConfigSave,
+    handleApproveSamples,
+    handleCreateEvidenceRequest,
+    getSamplingDataForControl,
+    getSamplingStatusForControl,
+    // ✅ ADD STATE REFRESH FUNCTION
+    refreshState
+  } = useAppState();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [selectedControl, setSelectedControl] = useState<ExtractedControl | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [controls, setControls] = useState<ExtractedControl[]>(extractedData.controls);
+  const [selectedITAC, setSelectedITAC] = useState<ExtractedITAC | null>(null);
+  const [selectedKeyReport, setSelectedKeyReport] = useState<ExtractedKeyReport | null>(null);
+  const [selectedWalkthrough, setSelectedWalkthrough] = useState<Application | null>(null);
+  const [isControlModalOpen, setIsControlModalOpen] = useState(false);
+  const [isITACModalOpen, setIsITACModalOpen] = useState(false);
+  const [isKeyReportModalOpen, setIsKeyReportModalOpen] = useState(false);
+  const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
 
-  // Update controls when extractedData changes
-  React.useEffect(() => {
-    setControls(extractedData.controls);
-  }, [extractedData.controls]);
+  const currentData = extractedData;
 
-  // FIXED: Enhanced modules array with Overview tab
-  const enhancedModules = [
-    { 
-      id: 'overview', 
-      name: 'Overview', 
-      icon: Home 
-    },
-    ...AUDIT_MODULES
-  ];
-
-  // FIXED: Get proper display title for key reports
-  const getKeyReportTitle = (report: ExtractedKeyReport, index: number = 0) => {
-    // Try multiple fields that might contain the report name
-    const possibleNames = [
-      report.name,
-      (report as any)['report name'],
-      (report as any)['key report'],
-      (report as any)['title'],
-      (report as any)['description']
-    ];
-    
-    for (const name of possibleNames) {
-      if (name && typeof name === 'string' && name.trim().length > 1 && 
-          !name.includes('Description for') && 
-          !name.includes('Key Report') && 
-          !name.match(/^Report \d+$/)) {
-        return name.trim();
-      }
-    }
-    
-    // Always use standard report names for generic data
-    const standardReportNames = [
-      'Revenue Recognition Report',
-      'Inventory Valuation Report', 
-      'Cash Flow Statement',
-      'Accounts Receivable Aging Report',
-      'Accounts Payable Analysis',
-      'Fixed Asset Register',
-      'Financial Statement Close Package',
-      'General Ledger Trial Balance',
-      'Payroll Summary Report',
-      'Cost of Goods Sold Report',
-      'Budget vs Actual Analysis',
-      'Tax Provision Report',
-      'Bank Reconciliation Report',
-      'Depreciation Schedule',
-      'Intercompany Reconciliation',
-      'Journal Entry Report',
-      'Purchase Order Report',
-      'Sales Commission Report',
-      'Expense Report Analysis',
-      'Credit Memo Report',
-      'Debit Memo Report',
-      'Customer Master Report',
-      'Vendor Master Report',
-      'Product Costing Report',
-      'Manufacturing Variance Report',
-      'Treasury Cash Report',
-      'Investment Portfolio Report',
-      'Loan Portfolio Report',
-      'Capital Asset Report',
-      'Lease Schedule Report',
-      'Warranty Reserve Report',
-      'Bad Debt Reserve Report',
-      'Accrual Analysis Report',
-      'Foreign Exchange Report',
-      'Transfer Pricing Report'
-    ];
-    
-    return standardReportNames[index % standardReportNames.length];
+  const handleFileUpload = (files: FileList) => {
+    onFileUpload(files);
   };
 
-  // FIXED: Get proper display title for ITACs with keyword detection
-  const getITACTitle = (itac: ExtractedITAC, index: number = 0) => {
-    // Try multiple fields that might contain the ITAC name or description
-    const possibleNames = [
-      (itac as any)['control name'],
-      (itac as any)['control title'],
-      (itac as any)['name'],
-      (itac as any)['title'],
-      (itac as any)['description'],
-      (itac as any)['control description'],
-      itac.controlType
-    ];
-    
-    let description = '';
-    for (const name of possibleNames) {
-      if (name && typeof name === 'string' && name.trim().length > 1 && 
-          !name.includes('Description for') && 
-          !name.includes('Control type') &&
-          !name.match(/^System \d+/) &&
-          !name.includes('Control Type')) {
-        description = name.trim().toLowerCase();
-        break;
-      }
-    }
-    
-    // Enhanced keyword detection for ITAC controls
-    const itacKeywords = [
-      { terms: ['sod', 'segregation of duties', 'segregation'], concept: 'Segregation of Duties Control' },
-      { terms: ['backflush', 'back flush'], concept: 'Backflush Costing Control' },
-      { terms: ['standard costing', 'standard cost'], concept: 'Standard Costing Control' },
-      { terms: ['three way match', '3-way match', 'three-way'], concept: 'Three-Way Match Control' },
-      { terms: ['purchase order', 'po approval'], concept: 'Purchase Order Approval Control' },
-      { terms: ['invoice approval', 'invoice matching'], concept: 'Invoice Approval Control' },
-      { terms: ['journal entry', 'je approval'], concept: 'Journal Entry Approval Control' },
-      { terms: ['credit limit', 'credit check'], concept: 'Credit Limit Control' },
-      { terms: ['inventory count', 'cycle count'], concept: 'Inventory Count Control' },
-      { terms: ['revenue recognition', 'rev rec'], concept: 'Revenue Recognition Control' },
-      { terms: ['payroll approval', 'payroll calculation'], concept: 'Payroll Calculation Control' },
-      { terms: ['bank reconciliation', 'bank rec'], concept: 'Bank Reconciliation Control' },
-      { terms: ['depreciation calculation', 'depreciation'], concept: 'Depreciation Calculation Control' },
-      { terms: ['tax calculation', 'tax provision'], concept: 'Tax Calculation Control' },
-      { terms: ['budget approval', 'budget variance'], concept: 'Budget Approval Control' },
-      { terms: ['cash disbursement', 'payment approval'], concept: 'Payment Approval Control' },
-      { terms: ['price validation', 'pricing'], concept: 'Price Validation Control' },
-      { terms: ['commission calculation', 'commission'], concept: 'Commission Calculation Control' },
-      { terms: ['expense approval', 'expense validation'], concept: 'Expense Approval Control' },
-      { terms: ['financial reporting', 'fr control'], concept: 'Financial Reporting Control' },
-      { terms: ['account reconciliation', 'recon'], concept: 'Account Reconciliation Control' },
-      { terms: ['allocation', 'cost allocation'], concept: 'Cost Allocation Control' },
-      { terms: ['accrual', 'accrual calculation'], concept: 'Accrual Calculation Control' },
-      { terms: ['foreign exchange', 'fx', 'currency'], concept: 'Foreign Exchange Control' },
-      { terms: ['intercompany', 'inter-company'], concept: 'Intercompany Control' },
-      { terms: ['batch processing', 'batch control'], concept: 'Batch Processing Control' },
-      { terms: ['data validation', 'validation'], concept: 'Data Validation Control' },
-      { terms: ['duplicate check', 'duplicate prevention'], concept: 'Duplicate Prevention Control' },
-      { terms: ['completeness check', 'completeness'], concept: 'Completeness Control' },
-      { terms: ['accuracy check', 'accuracy validation'], concept: 'Accuracy Validation Control' }
-    ];
-    
-    // Check for keywords if we have description
-    if (description) {
-      for (const keyword of itacKeywords) {
-        for (const term of keyword.terms) {
-          if (description.includes(term)) {
-            return keyword.concept;
-          }
-        }
-      }
-    }
-    
-    // Always use standard ITAC names for generic or missing data
-    const standardITACNames = [
-      'Purchase Order Approval Control',
-      'Invoice Three-Way Match Control',
-      'Segregation of Duties Control',
-      'Revenue Recognition Control',
-      'Inventory Backflush Control',
-      'Payroll Calculation Control',
-      'Journal Entry Approval Control',
-      'Bank Reconciliation Control',
-      'Credit Limit Validation Control',
-      'Standard Costing Control',
-      'Depreciation Calculation Control',
-      'Tax Calculation Control',
-      'Cash Disbursement Control',
-      'Expense Approval Control',
-      'Commission Calculation Control',
-      'Price Validation Control',
-      'Data Validation Control',
-      'Completeness Check Control',
-      'Accuracy Validation Control',
-      'Duplicate Prevention Control',
-      'Batch Processing Control',
-      'Interface Control',
-      'Allocation Control',
-      'Accrual Calculation Control',
-      'Foreign Exchange Control',
-      'Intercompany Control',
-      'Budget Approval Control',
-      'Variance Analysis Control',
-      'Cost Center Control',
-      'Asset Capitalization Control'
-    ];
-    
-    return standardITACNames[index % standardITACNames.length];
-  };
-
-  // FIXED: Enhanced control concept extraction with better audit terminology
-  const getControlKeyConcept = (control: ExtractedControl) => {
-    // Check all possible fields for control description/name
-    const description = (control as any)['control description'] || 
-                       (control as any)['description'] || 
-                       (control as any)['control name'] ||
-                       (control as any)['name'] ||
-                       control.description || 
-                       control.name || 
-                       '';
-    
-    // If we still have placeholder text, generate a meaningful name based on control family or ID
-    if (!description || description.includes('Description for control') || description.length < 3) {
-      const controlFamily = control.controlFamily || '';
-      const controlId = control.id || '';
-      
-      // Generate names based on common ITGC patterns
-      if (controlFamily.toLowerCase().includes('access')) {
-        return 'User Access Management Control';
-      } else if (controlFamily.toLowerCase().includes('change')) {
-        return 'Change Management Control';
-      } else if (controlFamily.toLowerCase().includes('backup') || controlFamily.toLowerCase().includes('recovery')) {
-        return 'Data Backup & Recovery Control';
-      } else if (controlFamily.toLowerCase().includes('security')) {
-        return 'Security Management Control';
-      } else if (controlFamily.toLowerCase().includes('monitor')) {
-        return 'System Monitoring Control';
-      } else {
-        // Use control ID pattern or generate generic names
-        const idNum = controlId.replace(/[^0-9]/g, '');
-        const genericNames = [
-          'User Access Provisioning',
-          'Password Management',
-          'Privileged Access Management', 
-          'Change Management Controls',
-          'Data Backup & Recovery',
-          'Network Security Controls',
-          'System Monitoring & Logging',
-          'Security Patch Management',
-          'Incident Response',
-          'Physical Security Controls',
-          'Data Encryption Controls',
-          'Vulnerability Management',
-          'Access Review Controls',
-          'Authentication Controls',
-          'Authorization Controls'
-        ];
-        const index = parseInt(idNum) || 1;
-        return genericNames[(index - 1) % genericNames.length];
-      }
-    }
-    
-    // Enhanced ITGC key concepts with more comprehensive audit terminology
-    const keyTerms = [
-      { terms: ['user access', 'access provision', 'user account creation', 'access request'], concept: 'User Access Provisioning' },
-      { terms: ['password', 'complexity', 'password policy'], concept: 'Password Management' },
-      { terms: ['privileged access', 'admin access', 'elevated access'], concept: 'Privileged Access Management' },
-      { terms: ['change management', 'change control', 'program changes', 'system changes'], concept: 'Change Management Controls' },
-      { terms: ['backup', 'back-up', 'back up', 'data backup'], concept: 'Data Backup & Recovery' },
-      { terms: ['recoverability', 'recovery', 'disaster recovery', 'business continuity'], concept: 'Disaster Recovery Controls' },
-      { terms: ['security patch', 'patching', 'vulnerability patching'], concept: 'Security Patch Management' },
-      { terms: ['monitoring', 'log review', 'system monitoring'], concept: 'System Monitoring & Logging' },
-      { terms: ['firewall', 'network security', 'network access'], concept: 'Network Security Controls' },
-      { terms: ['antivirus', 'malware', 'endpoint protection'], concept: 'Malware Protection' },
-      { terms: ['data encryption', 'encryption', 'data protection'], concept: 'Data Encryption Controls' },
-      { terms: ['vulnerability', 'scan', 'vulnerability management'], concept: 'Vulnerability Management' },
-      { terms: ['incident', 'response', 'incident management'], concept: 'Incident Response' },
-      { terms: ['segregation', 'separation', 'duties'], concept: 'Segregation of Duties' },
-      { terms: ['physical access', 'servers', 'data center'], concept: 'Physical Security Controls' },
-      { terms: ['testing', 'program changes', 'change testing'], concept: 'Change Testing Procedures' },
-      { terms: ['approval', 'production', 'change approval'], concept: 'Change Approval Process' },
-      { terms: ['user acceptance testing', 'uat'], concept: 'User Acceptance Testing' },
-      { terms: ['data conversion', 'data migration'], concept: 'Data Migration Controls' },
-      { terms: ['systems implementation', 'system deployment'], concept: 'System Implementation Controls' },
-      { terms: ['termination', 'disabled', 'user termination'], concept: 'User Termination Process' },
-      { terms: ['contractor', 'expiration', 'vendor access'], concept: 'Third-Party Access Management' },
-      { terms: ['unique', 'user id', 'identification'], concept: 'User Identification Controls' },
-      { terms: ['review', 'access review', 'periodic review'], concept: 'Access Review Controls' },
-      { terms: ['authentication', 'multi-factor', 'mfa'], concept: 'Authentication Controls' },
-      { terms: ['authorization', 'role-based', 'rbac'], concept: 'Authorization Controls' }
-    ];
-    
-    const lowerDesc = description.toLowerCase();
-    
-    for (const keyTerm of keyTerms) {
-      for (const term of keyTerm.terms) {
-        if (lowerDesc.includes(term)) {
-          return keyTerm.concept;
-        }
-      }
-    }
-    
-    // If no key terms found, use first few words
-    const words = description.split(' ');
-    return words.length > 4 ? words.slice(0, 4).join(' ') + '...' : description;
-  };
-
-  // FIXED: Get meaningful key report summary with unique titles
-  const getKeyReportSummary = (report: ExtractedKeyReport, index: number = 0) => {
-    const title = getKeyReportTitle(report, index);
-    
-    // If title is still generic or placeholder, generate meaningful names
-    if (!title || title.includes('Unnamed') || title === report.source) {
-      const standardReports = [
-        'Revenue Recognition Analysis',
-        'Inventory Valuation Analysis', 
-        'Cash Flow Analysis',
-        'Accounts Receivable Analysis',
-        'Accounts Payable Analysis',
-        'Fixed Asset Analysis',
-        'Financial Close Analysis',
-        'General Ledger Analysis',
-        'Payroll Analysis',
-        'Tax Provision Analysis',
-        'Cost of Goods Analysis',
-        'Budget vs Actual Analysis'
-      ];
-      return standardReports[index % standardReports.length];
-    }
-    
-    // Create a more descriptive summary based on title content
-    if (title.toLowerCase().includes('revenue') || title.toLowerCase().includes('sales')) {
-      return 'Revenue Recognition Analysis';
-    } else if (title.toLowerCase().includes('inventory') || title.toLowerCase().includes('cost')) {
-      return 'Inventory Valuation Analysis';
-    } else if (title.toLowerCase().includes('cash') || title.toLowerCase().includes('flow')) {
-      return 'Cash Flow Analysis';
-    } else if (title.toLowerCase().includes('receivable') || title.toLowerCase().includes('ar')) {
-      return 'Accounts Receivable Analysis';
-    } else if (title.toLowerCase().includes('payable') || title.toLowerCase().includes('ap')) {
-      return 'Accounts Payable Analysis';
-    } else if (title.toLowerCase().includes('fixed asset') || title.toLowerCase().includes('asset')) {
-      return 'Fixed Asset Analysis';
-    } else if (title.toLowerCase().includes('financial statement') || title.toLowerCase().includes('close')) {
-      return 'Financial Close Analysis';
-    } else if (title.toLowerCase().includes('general ledger') || title.toLowerCase().includes('gl')) {
-      return 'General Ledger Analysis';
-    } else if (title.toLowerCase().includes('payroll') || title.toLowerCase().includes('hr')) {
-      return 'Payroll Analysis';
-    } else if (title.toLowerCase().includes('tax') || title.toLowerCase().includes('provision')) {
-      return 'Tax Provision Analysis';
-    } else {
-      return title.replace(' Report', ' Analysis');
-    }
-  };
-
-  // Helper function to group and count duplicate summaries
-  const getGroupedSummaries = (items: any[], getSummaryFn: (item: any, index: number) => string) => {
-    const summaryGroups: { [key: string]: number } = {};
-    
-    items.forEach((item, index) => {
-      const summary = getSummaryFn(item, index);
-      summaryGroups[summary] = (summaryGroups[summary] || 0) + 1;
-    });
-    
-    return Object.entries(summaryGroups).map(([summary, count]) => ({
-      summary,
-      count,
-      displayText: count > 1 ? `${summary} (${count})` : summary
-    }));
-  };
-
-  // FIXED: Get meaningful ITAC summary with keyword detection
-  const getITACSummary = (itac: ExtractedITAC, index: number = 0) => {
-    // Get the title which already has keyword detection
-    const title = getITACTitle(itac, index);
-    
-    // If we got a meaningful title from keyword detection, use it
-    if (title && !title.includes('System -') && !title.includes('Application -')) {
-      return title;
-    }
-    
-    // Otherwise use the existing logic
-    const system = (itac as any).systemName || itac.system || 'Application';
-    const controlType = itac.controlType || 'Control';
-    
-    // If data is generic, provide standard ITAC names
-    if (!controlType || controlType === 'Control' || system === 'Application') {
-      const standardITACs = [
-        'Purchase Order Approval Control',
-        'Invoice Three-Way Match Control', 
-        'Segregation of Duties Control',
-        'Revenue Recognition Control',
-        'Inventory Backflush Control',
-        'Payroll Calculation Control',
-        'Journal Entry Approval Control',
-        'Bank Reconciliation Control',
-        'Credit Limit Validation Control',
-        'Standard Costing Control',
-        'Depreciation Calculation Control',
-        'Tax Provision Control',
-        'Cash Disbursement Control',
-        'Expense Approval Control',
-        'Commission Calculation Control'
-      ];
-      return standardITACs[index % standardITACs.length];
-    }
-    
-    // Create more descriptive ITAC summaries
-    if (controlType.toLowerCase().includes('validation') || controlType.toLowerCase().includes('edit')) {
-      return `${system} - Data Validation Controls`;
-    } else if (controlType.toLowerCase().includes('calculation') || controlType.toLowerCase().includes('computation')) {
-      return `${system} - Calculation Controls`;
-    } else if (controlType.toLowerCase().includes('approval') || controlType.toLowerCase().includes('workflow')) {
-      return `${system} - Approval Workflow Controls`;
-    } else if (controlType.toLowerCase().includes('interface') || controlType.toLowerCase().includes('integration')) {
-      return `${system} - Interface Controls`;
-    } else if (controlType.toLowerCase().includes('completeness') || controlType.toLowerCase().includes('accuracy')) {
-      return `${system} - Completeness & Accuracy Controls`;
-    } else if (controlType.toLowerCase().includes('authorization') || controlType.toLowerCase().includes('access')) {
-      return `${system} - Authorization Controls`;
-    } else if (controlType.toLowerCase().includes('exception') || controlType.toLowerCase().includes('error')) {
-      return `${system} - Exception Handling Controls`;
-    } else {
-      return `${system} - ${controlType}`;
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    await handleFileUpload(files);
-  };
-
-  const handleFileUpload = async (files: File[]) => {
-    setIsUploading(true);
-    try {
-      onFileUpload(files);
-    } catch (error) {
-      console.error('File upload error:', error);
-    } finally {
-      setIsUploading(false);
+    if (e.dataTransfer.files) {
+      handleFileUpload(e.dataTransfer.files);
     }
   };
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      handleFileUpload(files);
+  const handleControlClick = (control: ExtractedControl) => {
+    setSelectedControl(control);
+    setIsControlModalOpen(true);
+  };
+
+  const handleITACClick = (itac: ExtractedITAC) => {
+    setSelectedITAC(itac);
+    setIsITACModalOpen(true);
+  };
+
+  const handleKeyReportClick = (keyReport: ExtractedKeyReport) => {
+    setSelectedKeyReport(keyReport);
+    setIsKeyReportModalOpen(true);
+  };
+
+  const handleWalkthroughClick = (application: Application) => {
+    setSelectedWalkthrough(application);
+    setIsWalkthroughModalOpen(true);
+  };
+
+  const handleSummaryCardClick = (moduleId: string) => {
+    onModuleChange(moduleId);
+  };
+
+  const handleUpdateControl = (controlId: string, updates: any) => {
+    console.log('Updating control:', controlId, updates);
+    // Your existing control update logic here
+  };
+
+  const handleEvidenceUpload = (controlId: string, files: File[]) => {
+    console.log('Uploading evidence for control:', controlId, files);
+    // Your existing evidence upload logic here
+  };
+
+  // ✅ FIXED: Modal close handlers with state refresh
+  const handleControlModalClose = () => {
+    console.log('🔄 Refreshing state before closing control modal');
+    refreshState(); // Force fresh state fetch
+    setIsControlModalOpen(false);
+    setSelectedControl(null);
+  };
+
+  const handleITACModalClose = () => {
+    console.log('🔄 Refreshing state before closing ITAC modal');
+    refreshState(); // Force fresh state fetch
+    setIsITACModalOpen(false);
+    setSelectedITAC(null);
+  };
+
+  const handleKeyReportModalClose = () => {
+    console.log('🔄 Refreshing state before closing key report modal');
+    refreshState(); // Force fresh state fetch
+    setIsKeyReportModalOpen(false);
+    setSelectedKeyReport(null);
+  };
+
+  const getControlIcon = (description: string) => {
+    if (!description) return Shield;
+    
+    const desc = description.toLowerCase();
+    if (desc.includes('access') || desc.includes('user') || desc.includes('authentication')) return User;
+    if (desc.includes('backup') || desc.includes('recovery')) return Database;
+    if (desc.includes('security') || desc.includes('firewall')) return Lock;
+    if (desc.includes('monitoring') || desc.includes('logging')) return Monitor;
+    if (desc.includes('change') || desc.includes('configuration')) return Settings;
+    if (desc.includes('physical')) return Building2;
+    return Shield;
+  };
+
+  const getRiskLevelColor = (riskLevel: string) => {
+    switch (riskLevel?.toLowerCase()) {
+      case 'high': return 'text-red-600 bg-red-100';
+      case 'medium': return 'text-yellow-600 bg-yellow-100';
+      case 'low': return 'text-green-600 bg-green-100';
+      default: return 'text-gray-600 bg-gray-100';
     }
   };
 
-  const handleControlClick = (control: ExtractedControl, index?: number) => {
-    const enhancedTitle = getControlKeyConcept(control);
-    const originalDescription = (control as any)['control description'] || control.description || '';
-    const enhancedDescription = originalDescription && !originalDescription.includes('Description for control')
-      ? originalDescription 
-      : `Ensures ${enhancedTitle.toLowerCase()} are properly implemented and monitored within the organization's IT environment.`;
+  // ✅ FIXED: Get sampling status using current React state for real-time updates
+  const getSamplingStatusInfo = (controlId: string) => {
+    // PASS CURRENT REACT STATE TO AVOID LOCALSTORAGE FALLBACK
+    const status = getSamplingStatusForControl(controlId, evidenceRequests, evidenceSubmissions);
     
-    const enhancedControl = {
-      ...control,
-      enhancedTitle: enhancedTitle,
-      enhancedDescription: enhancedDescription,
-      // FIXED: Ensure risk rating is properly mapped
-      riskRating: control.riskRating || control['pwc risk rating (h/m/l)'] || 'M'
+    // Define which statuses require auditor action (red border)
+    const auditorActionStatuses = [
+      'Sampling Configured',
+      'Samples Generated', 
+      'Partial Evidence Submitted',
+      'All Evidence Submitted',
+      'Evidence Followup Required'
+    ];
+    
+    const needsAction = auditorActionStatuses.includes(status);
+    
+    // Status color mapping
+    const statusColors = {
+      'No Sampling Required': 'bg-gray-100 text-gray-600',
+      'Sampling Configured': 'bg-yellow-100 text-yellow-700',
+      'Samples Generated': 'bg-blue-100 text-blue-700',
+      'Evidence Request Sent': 'bg-purple-100 text-purple-700',
+      'Partial Evidence Submitted': 'bg-orange-100 text-orange-700',
+      'All Evidence Submitted': 'bg-green-100 text-green-700',
+      'Evidence Followup Required': 'bg-red-100 text-red-700',
+      'Evidence Approved': 'bg-green-100 text-green-700'
     };
     
-    setSelectedControl(enhancedControl);
-    setIsModalOpen(true);
-  };
-
-  const handleKeyReportClick = (report: ExtractedKeyReport, index: number) => {
-    // Create a mock control object for the modal using report data
-    const reportAsControl = {
-      id: report.id,
-      name: getKeyReportTitle(report, index),
-      description: (report as any).description || `${report.frequency} report from ${report.source} used for financial reporting and audit testing procedures.`,
-      enhancedTitle: getKeyReportTitle(report, index),
-      enhancedDescription: (report as any).description || `${report.frequency} report from ${report.source} used for financial reporting and audit testing procedures.`,
-      riskRating: 'Medium',
-      controlFamily: 'Key Reports',
-      testingStatus: 'Not Started',
-      frequency: report.frequency,
-      owner: report.owner,
-      source: report.source
+    const statusIcons = {
+      'No Sampling Required': null,
+      'Sampling Configured': Clock,
+      'Samples Generated': Eye,
+      'Evidence Request Sent': Send,
+      'Partial Evidence Submitted': AlertCircle,
+      'All Evidence Submitted': CheckCircle,
+      'Evidence Followup Required': AlertTriangle,
+      'Evidence Approved': CheckCircle
     };
-    
-    setSelectedControl(reportAsControl);
-    setIsModalOpen(true);
-  };
 
-  const handleITACClick = (itac: ExtractedITAC, index: number) => {
-    // Create a mock control object for the modal using ITAC data
-    const itacAsControl = {
-      id: itac.id,
-      name: getITACTitle(itac, index),
-      description: (itac as any).description || `Automated ${itac.controlType} control within ${itac.system} ensuring data accuracy and processing integrity.`,
-      enhancedTitle: getITACTitle(itac, index),
-      enhancedDescription: (itac as any).description || `Automated ${itac.controlType} control within ${itac.system} ensuring data accuracy and processing integrity.`,
-      riskRating: 'Medium',
-      controlFamily: 'ITACs',
-      testingStatus: itac.testingStatus,
-      controlType: itac.controlType,
-      system: itac.system,
-      owner: itac.owner
+    const colorClass = statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-600';
+    const IconComponent = statusIcons[status as keyof typeof statusIcons];
+    
+    return {
+      status,
+      needsAction,
+      colorClass,
+      icon: IconComponent,
+      borderClass: needsAction ? 'border-red-400 border-2' : 'border-gray-200'
     };
-    
-    setSelectedControl(itacAsControl);
-    setIsModalOpen(true);
   };
 
-  const handleUpdateControl = (controlId: string, updates: Partial<ExtractedControl>) => {
-    console.log('🔄 Updating control:', controlId, updates);
-    setControls(prev => 
-      prev.map(control => 
-        control.id === controlId 
-          ? { ...control, ...updates }
-          : control
-      )
-    );
-  };
-
-  const handleEvidenceUpload = async (controlId: string, files: File[]) => {
-    console.log('📁 Evidence uploaded for control:', controlId, files.length, 'files');
-    files.forEach(file => {
-      console.log(`📄 Uploaded: ${file.name} (${file.size} bytes)`);
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Not Started': return 'bg-gray-100 text-gray-800';
-      case 'In Progress': return 'bg-blue-100 text-blue-800';
-      case 'Evidence Uploaded': return 'bg-green-100 text-green-800';
-      case 'Testing Complete': return 'bg-purple-100 text-purple-800';
-      case 'Issues Found': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Map module IDs to their corresponding icons
   const getModuleIcon = (moduleId: string) => {
     const iconMap: { [key: string]: React.ComponentType<any> } = {
       'overview': Home,
@@ -578,39 +367,74 @@ export default function AuditSetup({
     return iconMap[moduleId] || CheckCircle;
   };
 
-  // Handle metric card clicks for navigation
-  const handleMetricCardClick = (moduleId: string) => {
-    onModuleChange(moduleId);
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  // Get audit period for sampling configuration
+  const auditPeriod = {
+    startDate: selectedAudit?.startDate ? new Date(selectedAudit.startDate) : new Date('2025-01-01'),
+    endDate: selectedAudit?.endDate ? new Date(selectedAudit.endDate) : new Date('2025-12-31')
   };
 
   return (
-    <div className="px-4 py-6 sm:px-0">
-      <div className="flex items-center gap-4 mb-6">
-        <button 
-          onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{selectedAudit.clientName} - Audit Setup</h1>
-          <p className="text-gray-600">Configure audit modules and upload documentation</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-6">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={onBack}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5 text-gray-600" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{selectedAudit.companyName}</h1>
+                <p className="text-sm text-gray-600">
+                  {selectedAudit.auditType} • {selectedAudit.clientId} • {new Date(selectedAudit.startDate).getFullYear()}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">
+                  {new Date(selectedAudit.startDate).toLocaleDateString()} - {new Date(selectedAudit.endDate).toLocaleDateString()}
+                </p>
+                <p className="text-sm text-gray-600">Audit Period</p>
+              </div>
+              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                selectedAudit.status === 'active' ? 'bg-green-100 text-green-800' :
+                selectedAudit.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {selectedAudit.status.charAt(0).toUpperCase() + selectedAudit.status.slice(1)}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Module Tabs */}
-      <div className="bg-white rounded-lg shadow-md mb-6">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
-            {enhancedModules.map((module) => {
-              const IconComponent = getModuleIcon(module.id);
+      {/* Navigation Tabs */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8 overflow-x-auto">
+            {AUDIT_MODULES.map((module) => {
               const isActive = currentModule === module.id;
+              const Icon = getModuleIcon(module.id);
               
-              // Count items for badge
               let itemCount = 0;
-              if (module.id === 'itgcs') itemCount = controls.length;
-              else if (module.id === 'itacs') itemCount = extractedData.itacs.length;
-              else if (module.id === 'key-reports') itemCount = extractedData.keyReports.length;
+              if (module.id === 'itgcs') itemCount = currentData?.controls?.length || 0;
+              else if (module.id === 'itacs') itemCount = currentData?.itacs?.length || 0;
+              else if (module.id === 'key-reports') itemCount = currentData?.keyReports?.length || 0;
+              else if (module.id === 'walkthroughs') itemCount = currentData?.applications?.length || 0;
               
               return (
                 <button
@@ -622,526 +446,484 @@ export default function AuditSetup({
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <IconComponent className="h-5 w-5" />
+                  <Icon className="h-4 w-4" />
                   <span>{module.name}</span>
                   {itemCount > 0 && (
-                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                    }`}>
                       {itemCount}
                     </span>
                   )}
                 </button>
               );
             })}
-          </nav>
+          </div>
         </div>
+      </div>
 
-        {/* Module Content */}
-        <div className="p-6">
-          {/* NEW: Overview Tab */}
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-8">
+          {/* ✅ FIXED: File Upload Section - Only show on Overview tab */}
           {currentModule === 'overview' && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Audit Overview</h2>
-              </div>
-
-              {/* Audit Summary */}
-              <div className="bg-gray-50 rounded-lg p-6 mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Audit Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
-                    <p className="text-gray-900 font-medium">{selectedAudit.clientName}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
-                    <p className="text-gray-900">{selectedAudit.clientId}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
-                    <p className="text-blue-600">{selectedAudit.website}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Relationship Owner</label>
-                    <p className="text-gray-900">{selectedAudit.relationshipOwner}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Audit Owner</label>
-                    <p className="text-gray-900">{selectedAudit.auditOwner}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Progress</label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${selectedAudit.progress}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{selectedAudit.progress}%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* MOVED: File Upload Area for Overview */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Files</h3>
-                <div
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    isDragOver 
-                      ? 'border-blue-400 bg-blue-50' 
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Files</h2>
+              
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Upload ITGC Master List</h3>
+                <p className="text-gray-600 mb-4">
+                  Drag and drop your Excel file here, or click to browse
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
-                  <Upload className={`h-12 w-12 mx-auto mb-4 ${isDragOver ? 'text-blue-500' : 'text-gray-400'}`} />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {isUploading ? 'Processing files...' : 'Upload Excel Files'}
-                  </h3>
-                  <p className="text-gray-600 mb-4">
-                    Drag and drop your Excel files here, or click to browse
-                  </p>
-                  <input
-                    type="file"
-                    multiple
-                    accept=".xlsx,.xls"
-                    onChange={handleFileInput}
-                    className="hidden"
-                    id="overview-file-upload"
-                  />
-                  <label
-                    htmlFor="overview-file-upload"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
-                  >
-                    Choose Files
-                  </label>
-                </div>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Choose File
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                  className="hidden"
+                />
               </div>
 
-              {/* MOVED: Uploaded Files to Overview */}
+              {/* Uploaded Files List */}
               {uploadedFiles.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Uploaded Files</h3>
-                  <div className="space-y-3">
-                    {uploadedFiles.map((file) => (
-                      <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">Uploaded Files</h3>
+                  <div className="space-y-2">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
-                          <FileText className="h-5 w-5 text-gray-400" />
+                          <FileText className="h-5 w-5 text-blue-600" />
                           <div>
                             <p className="text-sm font-medium text-gray-900">{file.name}</p>
                             <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          {file.status === 'completed' && <CheckCircle className="h-5 w-5 text-green-500" />}
-                          {file.status === 'processing' && <Clock className="h-5 w-5 text-blue-500" />}
-                          {file.status === 'error' && <XCircle className="h-5 w-5 text-red-500" />}
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <span className="text-sm text-green-600">Processed</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Audit Metrics Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* ITGCs Card */}
-                <div 
-                  onClick={() => handleMetricCardClick('itgcs')}
-                  className="bg-white border-2 border-green-200 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer hover:border-green-300"
+          {/* Overview/Summary Cards - Only show on Overview tab */}
+          {currentModule === 'overview' && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Audit Overview</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <button
+                  onClick={() => handleSummaryCardClick('itgcs')}
+                  className="bg-white border-2 border-blue-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-lg transition-all text-left group"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-green-100 rounded-lg">
-                      <CheckCircle className="h-8 w-8 text-green-600" />
+                    <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                      <CheckCircle className="h-8 w-8 text-blue-600" />
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-green-600">{controls.length}</p>
+                      <p className="text-3xl font-bold text-blue-600">{currentData?.controls?.length || 0}</p>
                       <p className="text-sm text-gray-500">Controls</p>
                     </div>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">IT General Controls</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Access controls, change management, and infrastructure controls
-                  </p>
-                  <div className="flex items-center text-green-600 text-sm font-medium">
-                    <span>View Details</span>
-                    <ArrowLeft className="h-4 w-4 ml-1 rotate-180" />
-                  </div>
-                </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-700">IT General Controls</h3>
+                  <p className="text-gray-600 text-sm">System-level controls that support the IT environment</p>
+                </button>
 
-                {/* Key Reports Card */}
-                <div 
-                  onClick={() => handleMetricCardClick('key-reports')}
-                  className="bg-white border-2 border-blue-200 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer hover:border-blue-300"
+                <button
+                  onClick={() => handleSummaryCardClick('key-reports')}
+                  className="bg-white border-2 border-green-200 rounded-lg p-6 hover:border-green-300 hover:shadow-lg transition-all text-left group"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-blue-100 rounded-lg">
-                      <FileText className="h-8 w-8 text-blue-600" />
+                    <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                      <FileText className="h-8 w-8 text-green-600" />
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-blue-600">{extractedData.keyReports.length}</p>
+                      <p className="text-3xl font-bold text-green-600">{currentData?.keyReports?.length || 0}</p>
                       <p className="text-sm text-gray-500">Reports</p>
                     </div>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Key Reports</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Critical reports used in financial reporting processes
-                  </p>
-                  <div className="flex items-center text-blue-600 text-sm font-medium">
-                    <span>View Details</span>
-                    <ArrowLeft className="h-4 w-4 ml-1 rotate-180" />
-                  </div>
-                </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-green-700">Key Reports</h3>
+                  <p className="text-gray-600 text-sm">Critical reports for audit evidence and testing</p>
+                </button>
 
-                {/* ITACs Card */}
-                <div 
-                  onClick={() => handleMetricCardClick('itacs')}
-                  className="bg-white border-2 border-purple-200 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer hover:border-purple-300"
+                <button
+                  onClick={() => handleSummaryCardClick('itacs')}
+                  className="bg-white border-2 border-purple-200 rounded-lg p-6 hover:border-purple-300 hover:shadow-lg transition-all text-left group"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-purple-100 rounded-lg">
+                    <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
                       <Settings className="h-8 w-8 text-purple-600" />
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-purple-600">{extractedData.itacs.length}</p>
-                      <p className="text-sm text-gray-500">ITACs</p>
+                      <p className="text-3xl font-bold text-purple-600">{currentData?.itacs?.length || 0}</p>
+                      <p className="text-sm text-gray-500">Controls</p>
                     </div>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">IT Application Controls</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Automated controls within applications and systems
-                  </p>
-                  <div className="flex items-center text-purple-600 text-sm font-medium">
-                    <span>View Details</span>
-                    <ArrowLeft className="h-4 w-4 ml-1 rotate-180" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-purple-700">IT Application Controls</h3>
+                  <p className="text-gray-600 text-sm">Automated controls within applications and systems</p>
+                </button>
+
+                <button
+                  onClick={() => handleSummaryCardClick('walkthroughs')}
+                  className="bg-white border-2 border-orange-200 rounded-lg p-6 hover:border-orange-300 hover:shadow-lg transition-all text-left group"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                      <Eye className="h-8 w-8 text-orange-600" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-orange-600">{currentData?.applications?.length || 0}</p>
+                      <p className="text-sm text-gray-500">Applications</p>
+                    </div>
                   </div>
-                </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-orange-700">Walkthroughs</h3>
+                  <p className="text-gray-600 text-sm">Process documentation and business system walkthroughs</p>
+                </button>
               </div>
             </div>
           )}
 
+          {/* ITGCs Tab */}
           {currentModule === 'itgcs' && (
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">IT General Controls</h2>
-                <div className="text-sm text-gray-500">
-                  {controls.length} controls found
-                </div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">IT General Controls ({currentData?.controls?.length || 0})</h2>
+                <button className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Controls
+                </button>
               </div>
-              <p className="text-gray-600 mb-6">
-                Upload and manage IT General Controls including access controls, change management, and infrastructure controls.
-                <span className="text-blue-600 font-medium"> Click any control card to view details and upload evidence.</span>
-              </p>
 
-              {/* FIXED: ITGC Summary with meaningful descriptions */}
-              {controls.length > 0 && (
-                <div className="mb-6 p-4 bg-green-50 rounded-lg">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Control Summary</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {controls.slice(0, 12).map((control, index) => (
-                      <div key={control.id} className="text-sm">
-                        <span className="font-medium text-green-800">
-                          {getControlKeyConcept(control)}
-                        </span>
-                      </div>
-                    ))}
-                    {controls.length > 12 && (
-                      <div className="text-sm text-green-600 font-medium">
-                        +{controls.length - 12} more controls...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Extracted Controls */}
-              {controls.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    IT General Controls ({controls.length})
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {controls.map((control) => {
-                      const displayTitle = getControlKeyConcept(control);
-                      // FIXED: Get meaningful description instead of placeholder text
-                      const originalDescription = (control as any)['control description'] || control.description || '';
-                      const displayDescription = originalDescription && !originalDescription.includes('Description for control') 
-                        ? originalDescription 
-                        : `Ensures ${displayTitle.toLowerCase()} are properly implemented and monitored within the organization's IT environment.`;
-                      
-                      return (
-                        <div 
-                          key={control.id} 
-                          onClick={() => handleControlClick(control)}
-                          className="bg-green-50 border border-green-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-green-100 hover:border-green-300"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">{displayTitle}</h4>
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800`}>
-                              {control.riskRating}
+              {currentData?.controls && currentData.controls.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {currentData.controls.map((control, index) => {
+                    const Icon = getControlIcon(control.description);
+                    const shortDescription = getShortDescriptionForParsing(control.description);
+                    const statusInfo = getSamplingStatusInfo(control.id);
+                    
+                    return (
+                      <div
+                        key={control.id || index}
+                        onClick={() => handleControlClick(control)}
+                        className={`bg-white border rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden ${statusInfo.borderClass}`}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors flex-shrink-0">
+                              <Icon className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors truncate">
+                                {shortDescription}
+                              </h3>
+                              <p className="text-sm text-gray-500 truncate">{control.category || 'General Control'}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(control.riskLevel || 'medium')}`}>
+                              {(control.riskLevel || 'MEDIUM').toUpperCase()}
                             </span>
-                          </div>
-                          
-                          <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                            {displayDescription.length > 80 
-                              ? displayDescription.substring(0, 80) + '...' 
-                              : displayDescription
-                            }
-                          </p>
-                          
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-gray-500">ID: {control.id}</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(control.testingStatus)}`}>
-                              {control.testingStatus}
-                            </span>
-                          </div>
-                          
-                          <div className="mt-2 text-xs text-gray-500">
-                            <span>{control.controlFamily}</span>
-                          </div>
-                          
-                          <div className="mt-2 text-xs text-blue-600 font-medium">
-                            Click to manage evidence →
+                            {/* ✅ REAL-TIME STATUS BADGE */}
+                            {statusInfo.status !== 'No Sampling Required' && (
+                              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
+                                {statusInfo.icon && <statusInfo.icon size={12} />}
+                                <span className="truncate max-w-24">{statusInfo.status}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                          {control.description}
+                        </p>
+                        
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-1 text-gray-500">
+                            <Target className="h-4 w-4" />
+                            <span>{control.controlObjective || 'Control Objective'}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-blue-600 group-hover:text-blue-700">
+                            <Eye className="h-4 w-4" />
+                            <span>View Details</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No IT General Controls Found</h3>
+                  <p className="text-gray-600">Upload an Excel file to load ITGC data</p>
                 </div>
               )}
             </div>
           )}
 
+          {/* Key Reports Tab - ✅ FIXED: Using report.name instead of report.reportName */}
           {currentModule === 'key-reports' && (
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Key Reports</h2>
-                <div className="text-sm text-gray-500">
-                  {extractedData.keyReports.length} reports found
-                </div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Key Reports ({currentData?.keyReports?.length || 0})</h2>
+                <button className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Reports
+                </button>
               </div>
-              <p className="text-gray-600 mb-6">
-                Review and analyze key financial reports that support audit assertions and testing procedures.
-                <span className="text-blue-600 font-medium"> Click any report card to view details and upload evidence.</span>
-              </p>
 
-              {/* FIXED: Key Reports Summary with grouped titles and counts */}
-              {extractedData.keyReports.length > 0 && (
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Report Summary</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {getGroupedSummaries(extractedData.keyReports.slice(0, 12), getKeyReportSummary).map((group, index) => (
-                      <div key={index} className="text-sm">
-                        <span className="font-medium text-blue-800">
-                          {group.displayText}
-                        </span>
+              {currentData?.keyReports && currentData.keyReports.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {currentData.keyReports.map((report, index) => {
+                    return (
+                      <div
+                        key={report.id || index}
+                        onClick={() => handleKeyReportClick(report)}
+                        className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:border-green-300 hover:shadow-lg transition-all group"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                              <FileText className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors truncate">
+                                {report.name || `Report ${index + 1}`}
+                              </h3>
+                              <p className="text-sm text-gray-500">{report.reportType || 'Standard Report'}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRiskLevelColor(report.criticality || 'medium')}`}>
+                            {(report.criticality || 'MEDIUM').toUpperCase()}
+                          </span>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                          {report.description || 'Key report for audit testing and evidence collection'}
+                        </p>
+                        
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-1 text-gray-500">
+                            <Activity className="h-4 w-4" />
+                            <span>{report.frequency || 'As Needed'}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-green-600 group-hover:text-green-700">
+                            <Eye className="h-4 w-4" />
+                            <span>View Details</span>
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                    {extractedData.keyReports.length > 12 && (
-                      <div className="text-sm text-blue-600 font-medium">
-                        +{extractedData.keyReports.length - 12} more reports...
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-
-              {/* FIXED: Key Reports Cards with Status and Click Handlers */}
-              {extractedData.keyReports.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {extractedData.keyReports.map((report, index) => (
-                    <div 
-                      key={report.id} 
-                      onClick={() => handleKeyReportClick(report, index)}
-                      className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-blue-100 hover:border-blue-300"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">
-                          {getKeyReportTitle(report, index)}
-                        </h4>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor('Not Started')}`}>
-                          Not Started
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                        {(report as any).description || `${report.frequency} report from ${report.source} used for financial reporting and audit testing procedures.`}
-                      </p>
-                      <div className="space-y-1 text-xs text-gray-500">
-                        <div className="flex justify-between">
-                          <span>Frequency:</span>
-                          <span>{(report as any).period || report.frequency}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Owner:</span>
-                          <span>{report.owner}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Source:</span>
-                          <span>{report.source}</span>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-xs text-blue-600 font-medium">
-                        Click to manage evidence →
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {extractedData.keyReports.length === 0 && (
-                <div className="text-center py-8">
+              ) : (
+                <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No key reports extracted yet. Upload Excel files in the Overview tab.</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Key Reports Found</h3>
+                  <p className="text-gray-600">Upload an Excel file to load key reports data</p>
                 </div>
               )}
             </div>
           )}
 
+          {/* ITACs Tab - ✅ FIXED: Using itac.processName instead of itac.controlName */}
           {currentModule === 'itacs' && (
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">IT Application Controls</h2>
-                <div className="text-sm text-gray-500">
-                  {extractedData.itacs.length} ITACs found
-                </div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">IT Application Controls ({currentData?.itacs?.length || 0})</h2>
+                <button className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export ITACs
+                </button>
               </div>
-              <p className="text-gray-600 mb-6">
-                Evaluate application-specific controls within key business systems and processes.
-                <span className="text-blue-600 font-medium"> Click any control card to view details and upload evidence.</span>
-              </p>
 
-              {/* FIXED: ITACs Summary with grouped titles and counts */}
-              {extractedData.itacs.length > 0 && (
-                <div className="mb-6 p-4 bg-purple-50 rounded-lg">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">ITAC Summary</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {getGroupedSummaries(extractedData.itacs, getITACSummary).map((group, index) => (
-                      <div key={index} className="text-sm">
-                        <span className="font-medium text-purple-800">
-                          {group.displayText}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* FIXED: ITAC Cards with Status and Click Handlers */}
-              {extractedData.itacs.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {extractedData.itacs.map((itac, index) => (
-                    <div 
-                      key={itac.id} 
-                      onClick={() => handleITACClick(itac, index)}
-                      className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-purple-100 hover:border-purple-300"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="text-sm font-semibold text-gray-900 line-clamp-2">
-                          {getITACTitle(itac, index)}
-                        </h4>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(itac.testingStatus)}`}>
-                          {itac.testingStatus}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                        {(itac as any).description || `Automated ${itac.controlType} control within ${itac.system} ensuring data accuracy and processing integrity.`}
-                      </p>
-                      <div className="space-y-1 text-xs text-gray-500">
-                        <div className="flex justify-between">
-                          <span>System:</span>
-                          <span>{(itac as any).systemName || itac.system}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Owner:</span>
-                          <span>{itac.owner}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Type:</span>
-                          <span>{itac.controlType}</span>
-                        </div>
-                        {(itac as any).frequency && (
-                          <div className="flex justify-between">
-                            <span>Frequency:</span>
-                            <span>{(itac as any).frequency}</span>
+              {currentData?.itacs && currentData.itacs.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {currentData.itacs.map((itac, index) => {
+                    const statusInfo = getSamplingStatusInfo(itac.id);
+                    
+                    return (
+                      <div
+                        key={itac.id || index}
+                        onClick={() => handleITACClick(itac)}
+                        className={`bg-white border rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden ${statusInfo.borderClass}`}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors flex-shrink-0">
+                              <Settings className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 group-hover:text-purple-700 transition-colors truncate">
+                                {itac.processName || `ITAC ${index + 1}`}
+                              </h3>
+                              <p className="text-sm text-gray-500 truncate">{itac.system || 'Application Control'}</p>
+                            </div>
                           </div>
-                        )}
+                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(itac.riskLevel || 'medium')}`}>
+                              {(itac.riskLevel || 'MEDIUM').toUpperCase()}
+                            </span>
+                            {/* ✅ REAL-TIME STATUS BADGE FOR ITACS */}
+                            {statusInfo.status !== 'No Sampling Required' && (
+                              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
+                                {statusInfo.icon && <statusInfo.icon size={12} />}
+                                <span className="truncate max-w-24">{statusInfo.status}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                          {itac.controlDescription || itac.controlType || 'Automated control within application system'}
+                        </p>
+                        
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-1 text-gray-500">
+                            <Zap className="h-4 w-4" />
+                            <span>{itac.controlType || 'Automated'}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-purple-600 group-hover:text-purple-700">
+                            <Eye className="h-4 w-4" />
+                            <span>View Details</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="mt-2 text-xs text-purple-600 font-medium">
-                        Click to manage evidence →
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-              )}
-
-              {extractedData.itacs.length === 0 && (
-                <div className="text-center py-8">
+              ) : (
+                <div className="text-center py-12">
                   <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No ITACs extracted yet. Upload Excel files in the Overview tab.</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No IT Application Controls Found</h3>
+                  <p className="text-gray-600">Upload an Excel file to load ITAC data</p>
                 </div>
               )}
             </div>
           )}
 
+          {/* Walkthroughs Tab */}
           {currentModule === 'walkthroughs' && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Process Walkthroughs</h2>
-              <p className="text-gray-600 mb-6">
-                Document and review business process walkthroughs and control procedures.
-              </p>
-              <div className="text-center py-12">
-                <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Walkthroughs Module</h3>
-                <p className="text-gray-600">This module will be available in a future update.</p>
-              </div>
-            </div>
+            <WalkthroughTab
+              applications={currentData?.applications || []}
+              onWalkthroughClick={handleWalkthroughClick}
+            />
           )}
 
+          {/* Other module placeholders */}
           {currentModule === 'key-systems' && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Key Systems</h2>
-              <p className="text-gray-600 mb-6">
-                Critical systems and infrastructure components in scope for the audit.
+            <div className="text-center py-12">
+              <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Key Systems</h3>
+              <p className="text-gray-600">
+                System inventory and technology stack documentation
               </p>
-              <div className="text-center py-12">
-                <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Key Systems Module</h3>
-                <p className="text-gray-600">This module will be available in a future update.</p>
-              </div>
             </div>
           )}
 
           {currentModule === 'findings-log' && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Findings Log</h2>
-              <p className="text-gray-600 mb-6">
-                Track and manage audit findings, exceptions, and remediation efforts.
+            <div className="text-center py-12">
+              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Findings Log</h3>
+              <p className="text-gray-600">
+                Track audit findings, deficiencies, and remediation status
               </p>
-              <div className="text-center py-12">
-                <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Findings Log Module</h3>
-                <p className="text-gray-600">This module will be available in a future update.</p>
-              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Control Detail Modal */}
+      {/* ✅ FIXED: Control Detail Modal with state refresh on close */}
       {selectedControl && (
         <ControlDetailModal
           control={selectedControl}
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedControl(null);
-          }}
+          isOpen={isControlModalOpen}
+          onClose={handleControlModalClose}
           onUpdateControl={handleUpdateControl}
           onEvidenceUpload={handleEvidenceUpload}
+          auditPeriod={auditPeriod}
+        />
+      )}
+
+      {/* ✅ FIXED: Enhanced ITAC Detail Modal with state refresh on close */}
+      {selectedITAC && (
+        <ControlDetailModal
+          control={{
+            id: selectedITAC.id,
+            description: selectedITAC.controlDescription || selectedITAC.controlType || 'ITAC Control',
+            controlObjective: selectedITAC.controlObjective || 'Application Control Objective',
+            riskLevel: selectedITAC.riskLevel || 'medium',
+            category: selectedITAC.system || 'Application Control',
+            testingProcedure: selectedITAC.testingProcedure || 'To be defined during walkthrough',
+            frequency: selectedITAC.frequency || 'Automated',
+            owner: selectedITAC.owner || selectedITAC.system || 'Application Team',
+            lastTested: selectedITAC.lastTested,
+            status: selectedITAC.status || 'pending',
+            name: selectedITAC.processName || selectedITAC.controlType || 'ITAC Control'
+          }}
+          isOpen={isITACModalOpen}
+          onClose={handleITACModalClose}
+          onUpdateControl={handleUpdateControl}
+          onEvidenceUpload={handleEvidenceUpload}
+          auditPeriod={auditPeriod}
+        />
+      )}
+
+      {/* ✅ FIXED: Enhanced Key Report Detail Modal with state refresh on close */}
+      {selectedKeyReport && (
+        <ControlDetailModal
+          control={{
+            id: selectedKeyReport.id,
+            name: selectedKeyReport.name || 'Key Report',
+            description: selectedKeyReport.description || `${selectedKeyReport.name} - Key audit report`,
+            controlObjective: selectedKeyReport.controlObjective || 'Provide audit evidence and support testing procedures',
+            riskLevel: selectedKeyReport.criticality || 'medium',
+            category: selectedKeyReport.reportType || 'Key Report',
+            testingProcedure: selectedKeyReport.testingProcedure || 'Review report for completeness and accuracy',
+            frequency: selectedKeyReport.frequency || 'As needed for audit',
+            owner: selectedKeyReport.owner || selectedKeyReport.dataSource || 'IT Team',
+            lastTested: selectedKeyReport.lastReviewed,
+            status: selectedKeyReport.status || 'pending'
+          }}
+          isOpen={isKeyReportModalOpen}
+          onClose={handleKeyReportModalClose}
+          onUpdateControl={handleUpdateControl}
+          onEvidenceUpload={handleEvidenceUpload}
+          auditPeriod={auditPeriod}
+        />
+      )}
+
+      {/* Walkthrough Detail Modal - No sampling integration needed */}
+      {selectedWalkthrough && (
+        <WalkthroughDetailModal
+          application={selectedWalkthrough}
+          isOpen={isWalkthroughModalOpen}
+          onClose={() => {
+            setIsWalkthroughModalOpen(false);
+            setSelectedWalkthrough(null);
+          }}
         />
       )}
     </div>
   );
-}
+};
+
+export default AuditSetup;
