@@ -222,7 +222,7 @@ export const getDashboardStats = (samples: SampleRequest[]): DashboardStats => {
   };
 };
 
-// Add these missing exports to fix the build errors:
+// Add these missing functions that were causing the build errors:
 
 export const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes';
