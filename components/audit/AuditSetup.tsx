@@ -1,4 +1,4 @@
-// components/audit/AuditSetup.tsx - FIXED WITH CORRECT FIELD NAMES FOR TITLES
+// components/audit/AuditSetup.tsx - FIXED WITH TEXT OVERFLOW PROTECTION
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -308,16 +308,9 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     // PASS CURRENT REACT STATE TO AVOID LOCALSTORAGE FALLBACK
     const status = getSamplingStatusForControl(controlId, evidenceRequests, evidenceSubmissions);
     
-    // Define which statuses require auditor action (red border)
-    const auditorActionStatuses = [
-      'Sampling Configured',
-      'Samples Generated', 
-      'Partial Evidence Submitted',
-      'All Evidence Submitted',
-      'Evidence Followup Required'
-    ];
-    
-    const needsAction = auditorActionStatuses.includes(status);
+    // ✅ ALL CARDS START WITH RED BORDERS - AUDITOR ACTION REQUIRED BY DEFAULT
+    // Only turn green when evidence is fully approved
+    const evidenceFullyApproved = status === 'Evidence Approved';
     
     // Status color mapping
     const statusColors = {
@@ -347,10 +340,11 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     
     return {
       status,
-      needsAction,
+      needsAction: !evidenceFullyApproved, // Always true except when evidence approved
       colorClass,
       icon: IconComponent,
-      borderClass: needsAction ? 'border-red-400 border-2' : 'border-gray-200'
+      // ✅ RED BORDER BY DEFAULT - Only green when evidence fully approved
+      borderClass: evidenceFullyApproved ? 'border-green-400 border-2' : 'border-red-400 border-2'
     };
   };
 
@@ -601,7 +595,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
             </div>
           )}
 
-          {/* ITGCs Tab */}
+          {/* ITGCs Tab - ✅ FIXED: Added overflow protection */}
           {currentModule === 'itgcs' && (
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -641,7 +635,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
                             <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(control.riskLevel || 'medium')}`}>
                               {(control.riskLevel || 'MEDIUM').toUpperCase()}
                             </span>
-                            {/* ✅ REAL-TIME STATUS BADGE */}
+                            {/* ✅ REAL-TIME STATUS BADGE WITH OVERFLOW PROTECTION */}
                             {statusInfo.status !== 'No Sampling Required' && (
                               <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
                                 {statusInfo.icon && <statusInfo.icon size={12} />}
@@ -658,9 +652,9 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center space-x-1 text-gray-500">
                             <Target className="h-4 w-4" />
-                            <span>{control.controlObjective || 'Control Objective'}</span>
+                            <span className="truncate">{control.controlObjective || 'Control Objective'}</span>
                           </div>
-                          <div className="flex items-center space-x-1 text-blue-600 group-hover:text-blue-700">
+                          <div className="flex items-center space-x-1 text-blue-600 group-hover:text-blue-700 flex-shrink-0">
                             <Eye className="h-4 w-4" />
                             <span>View Details</span>
                           </div>
@@ -679,7 +673,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
             </div>
           )}
 
-          {/* Key Reports Tab - ✅ FIXED: Using report.name instead of report.reportName */}
+          {/* Key Reports Tab - ✅ FIXED: Added overflow protection */}
           {currentModule === 'key-reports' && (
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -697,21 +691,21 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
                       <div
                         key={report.id || index}
                         onClick={() => handleKeyReportClick(report)}
-                        className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:border-green-300 hover:shadow-lg transition-all group"
+                        className="bg-white border border-gray-200 rounded-lg p-6 cursor-pointer hover:border-green-300 hover:shadow-lg transition-all group overflow-hidden"
                       >
                         <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors flex-shrink-0">
                               <FileText className="h-5 w-5 text-green-600" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <h3 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors truncate">
                                 {report.name || `Report ${index + 1}`}
                               </h3>
-                              <p className="text-sm text-gray-500">{report.reportType || 'Standard Report'}</p>
+                              <p className="text-sm text-gray-500 truncate">{report.reportType || 'Standard Report'}</p>
                             </div>
                           </div>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRiskLevelColor(report.criticality || 'medium')}`}>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${getRiskLevelColor(report.criticality || 'medium')}`}>
                             {(report.criticality || 'MEDIUM').toUpperCase()}
                           </span>
                         </div>
@@ -721,11 +715,11 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
                         </p>
                         
                         <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-1 text-gray-500">
-                            <Activity className="h-4 w-4" />
-                            <span>{report.frequency || 'As Needed'}</span>
+                          <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
+                            <Activity className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">{report.frequency || 'As Needed'}</span>
                           </div>
-                          <div className="flex items-center space-x-1 text-green-600 group-hover:text-green-700">
+                          <div className="flex items-center space-x-1 text-green-600 group-hover:text-green-700 flex-shrink-0">
                             <Eye className="h-4 w-4" />
                             <span>View Details</span>
                           </div>
@@ -744,7 +738,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
             </div>
           )}
 
-          {/* ITACs Tab - ✅ FIXED: Using itac.processName instead of itac.controlName */}
+          {/* ITACs Tab - ✅ FIXED: Added overflow protection */}
           {currentModule === 'itacs' && (
             <div>
               <div className="flex items-center justify-between mb-6">
@@ -782,7 +776,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
                             <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(itac.riskLevel || 'medium')}`}>
                               {(itac.riskLevel || 'MEDIUM').toUpperCase()}
                             </span>
-                            {/* ✅ REAL-TIME STATUS BADGE FOR ITACS */}
+                            {/* ✅ REAL-TIME STATUS BADGE FOR ITACS WITH OVERFLOW PROTECTION */}
                             {statusInfo.status !== 'No Sampling Required' && (
                               <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
                                 {statusInfo.icon && <statusInfo.icon size={12} />}
@@ -797,11 +791,11 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
                         </p>
                         
                         <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-1 text-gray-500">
-                            <Zap className="h-4 w-4" />
-                            <span>{itac.controlType || 'Automated'}</span>
+                          <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
+                            <Zap className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">{itac.controlType || 'Automated'}</span>
                           </div>
-                          <div className="flex items-center space-x-1 text-purple-600 group-hover:text-purple-700">
+                          <div className="flex items-center space-x-1 text-purple-600 group-hover:text-purple-700 flex-shrink-0">
                             <Eye className="h-4 w-4" />
                             <span>View Details</span>
                           </div>
