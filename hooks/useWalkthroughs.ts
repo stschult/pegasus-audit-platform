@@ -286,10 +286,21 @@ export const useWalkthroughs = (user: User | null, selectedAudit: Audit | null) 
     return 'draft';
   };
 
-  const getWalkthroughRequestsForAudit = (): WalkthroughRequest[] => {
-    return walkthroughRequests.filter(r => r.auditId === selectedAudit?.id);
-  };
+  //const getWalkthroughRequestsForAudit = (): WalkthroughRequest[] => {
+   // return walkthroughRequests.filter(r => r.auditId === selectedAudit?.id);
+//  };
 
+const getWalkthroughRequestsForAudit = (): WalkthroughRequest[] => {
+  console.log('🔍 DEBUG - getWalkthroughRequestsForAudit called');
+  console.log('🔍 selectedAudit?.id:', selectedAudit?.id);
+  console.log('🔍 Total walkthroughRequests:', walkthroughRequests.length);
+  console.log('🔍 Walkthrough auditIds:', walkthroughRequests.map(r => r.auditId));
+  
+  const filtered = walkthroughRequests.filter(r => r.auditId === selectedAudit?.id);
+  console.log('🔍 Filtered walkthroughs for current audit:', filtered.length);
+  
+  return filtered;
+};
   const getWalkthroughProgress = (): WalkthroughProgress => {
     const auditRequests = getWalkthroughRequestsForAudit();
     const total = auditRequests.length;
