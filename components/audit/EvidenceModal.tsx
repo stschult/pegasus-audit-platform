@@ -46,9 +46,9 @@ export default function EvidenceModal({
   onClose,
   controlId,
   controlDescription,
-  evidenceRequests = [],
-  evidenceSubmissions = [],
-  samples = [],
+  evidenceRequests = [], // Default to empty array
+  evidenceSubmissions = [], // Default to empty array
+  samples = [], // Default to empty array
   onUpdateRequest,
   onReviewSubmission,
   onRequestClarification
@@ -74,6 +74,7 @@ export default function EvidenceModal({
 
   // Calculate overview statistics
   const getOverviewStats = () => {
+    // Ensure arrays exist before accessing length
     const requests = evidenceRequests || [];
     const submissions = evidenceSubmissions || [];
     
@@ -99,8 +100,8 @@ export default function EvidenceModal({
 
   // Filter submissions based on search and status
   const getFilteredSubmissions = () => {
-    const submissions = evidenceSubmissions || [];
-    let filtered = submissions;
+    // Ensure evidenceSubmissions is not undefined
+    let filtered = evidenceSubmissions || [];
     
     if (filterStatus !== 'all') {
       filtered = filtered.filter(s => s.status === filterStatus);
@@ -152,8 +153,6 @@ export default function EvidenceModal({
 
   const stats = getOverviewStats();
   const filteredSubmissions = getFilteredSubmissions();
-  const requests = evidenceRequests || [];
-  const submissions = evidenceSubmissions || [];
 
   if (!isOpen) return null;
 
@@ -176,8 +175,8 @@ export default function EvidenceModal({
           <nav className="flex space-x-8 px-6" aria-label="Tabs">
             {[
               { id: 'overview', label: 'Overview', icon: Eye },
-              { id: 'requests', label: `Requests (${requests.length})`, icon: Send },
-              { id: 'submissions', label: `Submissions (${submissions.length})`, icon: Upload },
+              { id: 'requests', label: `Requests (${(evidenceRequests || []).length})`, icon: Send },
+              { id: 'submissions', label: `Submissions (${(evidenceSubmissions || []).length})`, icon: Upload },
               { id: 'communication', label: 'Communication', icon: MessageCircle }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -266,25 +265,24 @@ export default function EvidenceModal({
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
                 <div className="space-y-3">
-                  {submissions.length > 0 ? (
-                    submissions.slice(0, 5).map((submission) => (
-                      <div key={submission.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <Upload className="w-4 h-4 text-gray-400" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{submission.fileName}</p>
-                          <p className="text-sm text-gray-500">
-                            Uploaded {new Date(submission.uploadedAt).toLocaleDateString()} by {submission.uploadedBy}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(submission.status)}`}>
-                          {submission.status.replace('_', ' ').toUpperCase()}
-                        </span>
+                  {(evidenceSubmissions || []).slice(0, 5).map((submission) => (
+                    <div key={submission.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                      <Upload className="w-4 h-4 text-gray-400" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{submission.fileName}</p>
+                        <p className="text-sm text-gray-500">
+                          Uploaded {new Date(submission.uploadedAt).toLocaleDateString()} by {submission.uploadedBy}
+                        </p>
                       </div>
-                    ))
-                  ) : (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(submission.status)}`}>
+                        {submission.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                  ))}
+                  {(evidenceSubmissions || []).length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                      <p>No evidence submissions yet</p>
+                      <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>No submissions yet</p>
                     </div>
                   )}
                 </div>
@@ -313,66 +311,65 @@ export default function EvidenceModal({
               </div>
 
               <div className="space-y-4">
-                {requests.length > 0 ? (
-                  requests.map((request) => (
-                    <div key={request.id} className="bg-white border border-gray-200 rounded-lg p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="text-lg font-medium text-gray-900">{request.title}</h4>
-                          <p className="text-sm text-gray-600 mt-1">{request.instructions}</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
-                          {request.status.replace('_', ' ').toUpperCase()}
-                        </span>
+                {(evidenceRequests || []).map((request) => (
+                  <div key={request.id} className="bg-white border border-gray-200 rounded-lg p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h4 className="text-lg font-medium text-gray-900">{request.title}</h4>
+                        <p className="text-sm text-gray-600 mt-1">{request.instructions}</p>
                       </div>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
+                        {request.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
 
-                      {request.samplingDetails && (
-                        <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                          <h5 className="font-medium text-gray-900 mb-2">Sampling Details</h5>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="text-gray-600">Methodology:</span>
-                              <span className="ml-2 font-medium">{request.samplingDetails.methodology}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Sample Size:</span>
-                              <span className="ml-2 font-medium">{request.samplingDetails.sampleSize}</span>
-                            </div>
+                    {request.samplingDetails && (
+                      <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                        <h5 className="font-medium text-gray-900 mb-2">Sampling Details</h5>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Methodology:</span>
+                            <span className="ml-2 font-medium">{request.samplingDetails.methodology}</span>
                           </div>
-                          
-                          <div className="mt-3">
-                            <span className="text-gray-600 text-sm">Required Dates:</span>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {request.samplingDetails.selectedDates.map((date, index) => (
-                                <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                                  {date}
-                                </span>
-                              ))}
-                            </div>
+                          <div>
+                            <span className="text-gray-600">Sample Size:</span>
+                            <span className="ml-2 font-medium">{request.samplingDetails.sampleSize}</span>
                           </div>
                         </div>
-                      )}
+                        
+                        <div className="mt-3">
+                          <span className="text-gray-600 text-sm">Required Dates:</span>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {request.samplingDetails.selectedDates.map((date, index) => (
+                              <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                {date}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <div className="flex items-center space-x-4">
-                          <span>Created: {new Date(request.createdAt).toLocaleDateString()}</span>
-                          <span>Due: {new Date(request.dueDate).toLocaleDateString()}</span>
-                          <span>Priority: {request.priority.toUpperCase()}</span>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => setSelectedRequest(request)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            View Details
-                          </button>
-                        </div>
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <div className="flex items-center space-x-4">
+                        <span>Created: {new Date(request.createdAt).toLocaleDateString()}</span>
+                        <span>Due: {new Date(request.dueDate).toLocaleDateString()}</span>
+                        <span>Priority: {request.priority.toUpperCase()}</span>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setSelectedRequest(request)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          View Details
+                        </button>
                       </div>
                     </div>
-                  ))
-                ) : (
+                  </div>
+                ))}
+                {(evidenceRequests || []).length === 0 && (
                   <div className="text-center py-8 text-gray-500">
-                    <Send className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <Send className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                     <p>No evidence requests yet</p>
                   </div>
                 )}
@@ -412,88 +409,87 @@ export default function EvidenceModal({
 
               {/* Submissions Table */}
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                {filteredSubmissions.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            File Name
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Sample Date
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Uploaded
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Status
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {filteredSubmissions.map((submission) => (
-                          <tr key={submission.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center space-x-3">
-                                <FileText className="w-4 h-4 text-gray-400" />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">{submission.fileName}</div>
-                                  <div className="text-sm text-gray-500">{submission.fileSize} bytes</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {submission.sampleDate ? (
-                                <div className="flex items-center space-x-2">
-                                  <Calendar className="w-4 h-4 text-gray-400" />
-                                  <span>{submission.sampleDate}</span>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">General</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-500">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          File Name
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Sample Date
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Uploaded
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {filteredSubmissions.map((submission) => (
+                        <tr key={submission.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center space-x-3">
+                              <FileText className="w-4 h-4 text-gray-400" />
                               <div>
-                                <div>{new Date(submission.uploadedAt).toLocaleDateString()}</div>
-                                <div className="text-xs text-gray-400">by {submission.uploadedBy}</div>
+                                <div className="text-sm font-medium text-gray-900">{submission.fileName}</div>
+                                <div className="text-sm text-gray-500">{submission.fileSize} bytes</div>
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(submission.status)}`}>
-                                {submission.status.replace('_', ' ').toUpperCase()}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <div className="flex space-x-2">
-                                <button className="text-blue-600 hover:text-blue-800">
-                                  <Eye size={16} />
-                                </button>
-                                <button className="text-green-600 hover:text-green-800">
-                                  <Download size={16} />
-                                </button>
-                                {submission.status === 'uploaded' && (
-                                  <button
-                                    onClick={() => setSelectedSubmission(submission)}
-                                    className="text-purple-600 hover:text-purple-800"
-                                  >
-                                    Review
-                                  </button>
-                                )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {submission.sampleDate ? (
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                <span>{submission.sampleDate}</span>
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
+                            ) : (
+                              <span className="text-gray-400">General</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            <div>
+                              <div>{new Date(submission.uploadedAt).toLocaleDateString()}</div>
+                              <div className="text-xs text-gray-400">by {submission.uploadedBy}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(submission.status)}`}>
+                              {submission.status.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex space-x-2">
+                              <button className="text-blue-600 hover:text-blue-800">
+                                <Eye size={16} />
+                              </button>
+                              <button className="text-green-600 hover:text-green-800">
+                                <Download size={16} />
+                              </button>
+                              {submission.status === 'uploaded' && (
+                                <button
+                                  onClick={() => setSelectedSubmission(submission)}
+                                  className="text-purple-600 hover:text-purple-800"
+                                >
+                                  Review
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {filteredSubmissions.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
-                    <FileText className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p>No evidence submissions yet</p>
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No submissions found</p>
                   </div>
                 )}
               </div>
@@ -540,7 +536,7 @@ export default function EvidenceModal({
 
                 {/* Communication History */}
                 <div className="space-y-4">
-                  {requests.map((request) => 
+                  {(evidenceRequests || []).map((request) => 
                     request.clarificationRequests?.map((clarification) => (
                       <div key={clarification.id} className="border-l-4 border-yellow-400 pl-4 py-2">
                         <div className="flex items-start justify-between">
@@ -570,9 +566,9 @@ export default function EvidenceModal({
                       </div>
                     ))
                   )}
-                  {requests.every(r => !r.clarificationRequests || r.clarificationRequests.length === 0) && (
+                  {(evidenceRequests || []).every(r => !r.clarificationRequests?.length) && (
                     <div className="text-center py-8 text-gray-500">
-                      <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                      <MessageCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                       <p>No communication history yet</p>
                     </div>
                   )}

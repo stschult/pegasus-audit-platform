@@ -1,4 +1,4 @@
-// components/client/ClientUploadPortal.tsx
+// components/client/ClientUploadPortal.tsx (Updated with ITGC Bulk Upload)
 'use client';
 
 import React, { useState, useCallback, useRef } from 'react';
@@ -21,7 +21,9 @@ import {
   Shield,
   Activity,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  FileSpreadsheet,
+  Package
 } from 'lucide-react';
 
 // Import types and utilities
@@ -36,6 +38,25 @@ import {
   isOverdue 
 } from '../../lib/client/utils';
 
+// Import the new Control Sheet Upload component
+import { ControlSheetUpload } from './ControlSheetUpload';
+
+// Interface for company info from bulk upload
+interface CompanyInfo {
+  companyName: string;
+  auditPeriod: string;
+  auditScope: string;
+  methodology: string;
+  auditorName: string;
+  auditorEmail: string;
+  clientContact: string;
+  clientEmail: string;
+  startDate: string;
+  endDate: string;
+  url?: string;
+  auditType?: string;
+}
+
 export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
   clientId,
   auditId,
@@ -49,9 +70,20 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [newComment, setNewComment] = useState('');
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // File Upload Handlers
+  // Bulk Upload Handlers
+  const handleBulkImportComplete = (newRequests: SampleRequest[], newCompanyInfo: CompanyInfo) => {
+    // Add new requests to existing ones
+    setSampleRequests(prev => [...prev, ...newRequests]);
+    setCompanyInfo(newCompanyInfo);
+    setShowBulkUpload(false);
+    setActiveTab('requests'); // Switch to requests tab to show imported controls
+  };
+
+  // File Upload Handlers (existing individual upload functionality)
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragActive(true);
@@ -154,12 +186,23 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
               <Building2 className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Pegasus Audit Portal</h1>
-                <p className="text-sm text-gray-600">{clientName} - Audit Evidence Management</p>
+                <p className="text-sm text-gray-600">
+                  {companyInfo?.companyName || clientName} - Audit Evidence Management
+                </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <Calendar className="h-4 w-4" />
-              <span>Audit Period: Q3 2024</span>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Calendar className="h-4 w-4" />
+                <span>Audit Period: {companyInfo?.auditPeriod || 'Q3 2024'}</span>
+              </div>
+              <button
+                onClick={() => setShowBulkUpload(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>Bulk Upload</span>
+              </button>
             </div>
           </div>
         </div>
@@ -171,9 +214,9 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
           <nav className="flex space-x-8">
             {[
               { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-              { key: 'requests', label: 'Evidence Requests', icon: FileText },
+              { key: 'requests', label: 'Evidence Requests', icon: FileText, count: sampleRequests.length },
               { key: 'calendar', label: 'Due Dates', icon: Calendar }
-            ].map(({ key, label, icon: Icon }) => (
+            ].map(({ key, label, icon: Icon, count }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key as any)}
@@ -185,6 +228,11 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
               >
                 <Icon className="h-4 w-4" />
                 <span>{label}</span>
+                {count && (
+                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">
+                    {count}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -195,6 +243,34 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
+            {/* Company Info Card (if available) */}
+            {companyInfo && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center mb-4">
+                  <Building2 className="h-6 w-6 text-blue-600 mr-2" />
+                  <h3 className="text-lg font-medium text-gray-900">Audit Information</h3>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-500">Company:</span>
+                    <p className="text-gray-900">{companyInfo.companyName}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Audit Period:</span>
+                    <p className="text-gray-900">{companyInfo.auditPeriod}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Auditor:</span>
+                    <p className="text-gray-900">{companyInfo.auditorName}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">Client Contact:</span>
+                    <p className="text-gray-900">{companyInfo.clientContact}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
@@ -217,6 +293,37 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setShowBulkUpload(true)}
+                    className="flex items-center justify-center space-x-3 p-4 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+                  >
+                    <FileSpreadsheet className="h-6 w-6 text-green-600" />
+                    <div className="text-left">
+                      <p className="font-medium text-green-900">Bulk Import Controls</p>
+                      <p className="text-sm text-green-600">Upload ITGC Master List with multiple controls</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('requests')}
+                    className="flex items-center justify-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <Package className="h-6 w-6 text-blue-600" />
+                    <div className="text-left">
+                      <p className="font-medium text-blue-900">Manage Evidence</p>
+                      <p className="text-sm text-blue-600">Upload files for individual controls</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Priority Actions */}
@@ -287,6 +394,13 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
                     <option value="approved">Approved</option>
                   </select>
                 </div>
+                <button
+                  onClick={() => setShowBulkUpload(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Bulk Upload</span>
+                </button>
               </div>
             </div>
 
@@ -583,7 +697,6 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
                 </button>
                 <button
                   onClick={() => {
-                    // Handle save/submit logic here
                     setSelectedRequest(null);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
@@ -595,11 +708,19 @@ export const ClientUploadPortal: React.FC<ClientUploadPortalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Bulk Upload Modal */}
+      {showBulkUpload && (
+        <ControlSheetUpload
+          onImportComplete={handleBulkImportComplete}
+          onCancel={() => setShowBulkUpload(false)}
+        />
+      )}
     </div>
   );
 };
 
-// Mock Data Generator - matching your ITGC patterns
+// Mock Data Generator - keeping your existing mock data
 function generateMockData(): SampleRequest[] {
   const sampleData: SampleRequest[] = [
     {
@@ -714,88 +835,6 @@ function generateMockData(): SampleRequest[] {
       assignedTo: 'Infrastructure Team',
       createdDate: '2024-08-01T09:00:00Z',
       completionPercentage: 90
-    },
-    {
-      id: 'CTRL-MON-004-2024-Q3-1',
-      controlId: 'MON-004',
-      controlTitle: 'System Monitoring',
-      controlType: 'System Monitoring',
-      riskRating: 'Medium',
-      frequency: 'Daily',
-      description: 'Daily monitoring of system performance, security events, and anomaly detection to ensure operational stability.',
-      dueDate: '2024-09-10',
-      status: 'reviewed',
-      priority: 'medium',
-      requiredEvidence: [
-        'System monitoring dashboards',
-        'Alert notifications log',
-        'Incident response records',
-        'Performance metrics reports'
-      ],
-      uploadedFiles: [
-        {
-          id: 'f4',
-          name: 'Monitoring_Dashboard_August.png',
-          size: 3072000,
-          type: 'image/png',
-          uploadDate: '2024-08-28T11:20:00Z',
-          uploadedBy: 'Tech Corp'
-        }
-      ],
-      comments: [
-        {
-          id: 'c3',
-          author: 'Michael Chen',
-          authorRole: 'auditor',
-          message: 'Evidence looks good. Please provide the incident response documentation as well.',
-          timestamp: '2024-08-29T09:15:00Z',
-          isRead: true
-        }
-      ],
-      assignedTo: 'Operations Team',
-      createdDate: '2024-08-01T09:00:00Z',
-      completionPercentage: 75
-    },
-    {
-      id: 'CTRL-PHY-005-2024-Q3-1',
-      controlId: 'PHY-005',
-      controlTitle: 'Physical Security',
-      controlType: 'Physical Security',
-      riskRating: 'Low',
-      frequency: 'Monthly',
-      description: 'Monthly review of physical access controls, visitor logs, and security camera footage to ensure facility security.',
-      dueDate: '2024-10-01',
-      status: 'approved',
-      priority: 'low',
-      requiredEvidence: [
-        'Access card logs',
-        'Visitor registration records',
-        'Security camera footage review',
-        'Physical security checklist'
-      ],
-      uploadedFiles: [
-        {
-          id: 'f5',
-          name: 'Physical_Security_Report_August.pdf',
-          size: 1536000,
-          type: 'application/pdf',
-          uploadDate: '2024-08-25T13:30:00Z',
-          uploadedBy: 'Tech Corp'
-        }
-      ],
-      comments: [
-        {
-          id: 'c4',
-          author: 'Lisa Wong',
-          authorRole: 'auditor',
-          message: 'All physical security controls are operating effectively. Approved.',
-          timestamp: '2024-08-30T15:45:00Z',
-          isRead: true
-        }
-      ],
-      assignedTo: 'Facilities Team',
-      createdDate: '2024-08-01T09:00:00Z',
-      completionPercentage: 100
     }
   ];
 
