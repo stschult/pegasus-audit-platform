@@ -17,6 +17,72 @@ interface WalkthroughDetailModalProps {
   onClose: () => void;
 }
 
+// Description parser function
+const parseWalkthroughDescription = (description: string) => {
+  if (!description) return null;
+  
+  // Split by double newlines to get sections
+  const sections = description.split('\n\n').filter(section => section.trim());
+  
+  if (sections.length === 0) return null;
+  
+  // Find the business process line (usually the first or second section)
+  const businessProcessSection = sections.find(section => 
+    section.includes('Business process walkthrough') || 
+    section.includes('walkthrough for') ||
+    section.includes('process walkthrough')
+  );
+  
+  // Find numbered sections (sections that start with digits followed by a period)
+  const numberedSections = sections.filter(section => 
+    /^\d+\./.test(section.trim())
+  );
+  
+  return {
+    businessProcess: businessProcessSection?.trim(),
+    numberedSections: numberedSections.map(section => section.trim())
+  };
+};
+
+// Formatted Description Component
+const FormattedDescription: React.FC<{ description: string }> = ({ description }) => {
+  const parsedDescription = parseWalkthroughDescription(description);
+  
+  if (!parsedDescription) {
+    // Fallback to original rendering if parsing fails
+    return (
+      <div className="text-gray-600 mb-4 whitespace-pre-line">
+        {description}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="text-gray-600 mb-4">
+      <div className="font-medium text-gray-700 mb-2">What we will cover:</div>
+      
+      {parsedDescription.businessProcess && (
+        <div className="mb-3">
+          {parsedDescription.businessProcess}
+        </div>
+      )}
+      
+      {parsedDescription.numberedSections.length > 0 && (
+        <div>
+          <div className="font-medium text-gray-700 mb-2">Key Control Descriptions:</div>
+          <div className="space-y-2">
+            {parsedDescription.numberedSections.map((section, index) => (
+              <div key={index} className="text-sm">
+                {section}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const WalkthroughDetailModal: React.FC<WalkthroughDetailModalProps> = ({
   application,
   isOpen,
@@ -116,7 +182,7 @@ const WalkthroughDetailModal: React.FC<WalkthroughDetailModalProps> = ({
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Application Overview</h3>
-                <p className="text-gray-600 mb-4">{application.description}</p>
+                <FormattedDescription description={application.description} />
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-gray-50 p-4 rounded-lg">

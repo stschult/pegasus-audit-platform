@@ -18,7 +18,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
       <div className="max-w-md w-full space-y-8 p-8">
         {/* Logo and Header */}
         <div className="text-center">
@@ -31,15 +31,15 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
             />
           </div>
           
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Pegasus</h2>
-          <p className="text-gray-600">Professional Audit Platform</p>
+          <h2 className="text-3xl font-bold text-white mb-2">Welcome to Pegasus</h2>
+          <p className="text-gray-300">Professional Audit Platform</p>
         </div>
 
         {/* Login Form */}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
                 Email Address
               </label>
               <div className="relative">
@@ -52,14 +52,14 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-gray-800 text-white"
                   placeholder="Enter your email"
                 />
               </div>
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
                 Password
               </label>
               <div className="relative">
@@ -72,7 +72,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-gray-800 text-white"
                   placeholder="Enter your password"
                 />
               </div>
@@ -93,9 +93,9 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
 
           {/* Demo Credentials */}
           <div className="text-center">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800 font-medium mb-1">Demo Credentials</p>
-              <p className="text-xs text-blue-600">
+            <div className="bg-gray-800 border border-blue-600 rounded-lg p-4">
+              <p className="text-sm text-blue-400 font-medium mb-1">Demo Credentials</p>
+              <p className="text-xs text-gray-300">
                 Email: Any email • Password: demo123
               </p>
             </div>

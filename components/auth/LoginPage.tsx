@@ -18,7 +18,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
       <div className="max-w-md w-full space-y-8 p-8">
         {/* Pegasus Logo */}
         <div className="text-center mb-8">
@@ -29,14 +29,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Welcome to Pegasus</h1>
-          <p className="text-xl text-gray-600">Professional Audit Platform</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Welcome to Pegasus</h1>
+          <p className="text-xl text-gray-300">Professional Audit Platform</p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-lg font-medium text-gray-700 mb-3">
+              <label htmlFor="email" className="block text-lg font-medium text-gray-300 mb-3">
                 Email Address
               </label>
               <div className="relative">
@@ -50,13 +50,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   name="email"
                   type="email"
                   required
-                  className="block w-full pl-12 pr-4 py-4 text-lg border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="block w-full pl-12 pr-4 py-4 text-lg border border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-800 text-white"
                   placeholder="Enter your email"
                 />
               </div>
             </div>
             <div>
-              <label htmlFor="password" className="block text-lg font-medium text-gray-700 mb-3">
+              <label htmlFor="password" className="block text-lg font-medium text-gray-300 mb-3">
                 Password
               </label>
               <div className="relative">
@@ -70,7 +70,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   name="password"
                   type="password"
                   required
-                  className="block w-full pl-12 pr-4 py-4 text-lg border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="block w-full pl-12 pr-4 py-4 text-lg border border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-800 text-white"
                   placeholder="Enter your password"
                 />
               </div>
@@ -89,9 +89,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </button>
 
             {/* Demo Credentials Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-              <h3 className="text-lg font-semibold text-blue-900 mb-2">Demo Credentials</h3>
-              <p className="text-blue-700">
+            <div className="bg-gray-800 border border-blue-600 rounded-xl p-6 text-center">
+              <h3 className="text-lg font-semibold text-blue-400 mb-2">Demo Credentials</h3>
+              <p className="text-gray-300">
                 <span className="font-medium">Email:</span> Any email • <span className="font-medium">Password:</span> demo123
               </p>
             </div>

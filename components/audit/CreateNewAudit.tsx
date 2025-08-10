@@ -1,8 +1,8 @@
-// components/audit/CreateNewAudit.tsx - WITH COLUMN F FREQUENCY FIX
+// components/audit/CreateNewAudit.tsx - UPDATED for Auditor → Client Flow + WALKTHROUGH EXTRACTION FIX + DATE EXTRACTION FIX
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowLeft, Upload, FileText, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { AuditFormData, ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport } from '../../types';
 
@@ -18,7 +18,7 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
     website: '',
     clientLead: '',
     auditLead: '',
-    auditType: '',
+    auditType: 'SOC 2',
     startDate: '',
     endDate: ''
   });
@@ -65,24 +65,8 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
     setUploadedFile(file);
 
     try {
-      console.log(`🚀 Starting Excel file processing: ${file.name}`);
-      
-      // Parse Excel file to extract profile data AND create real data
-      const { profileData, excelData } = await parseExcelFile(file);
-      
-      // Auto-fill form fields from Profile sheet
-      if (profileData) {
-        console.log(`📋 Auto-filling form with profile data:`, profileData);
-        setFormData(prev => ({
-          ...prev,
-          companyName: profileData.companyName || prev.companyName,
-          clientId: profileData.clientId || prev.clientId,
-          website: profileData.website || prev.website,
-          clientLead: profileData.clientLead || prev.clientLead,
-          auditLead: profileData.auditLead || prev.auditLead
-        }));
-      }
-      
+      console.log(`🚀 Processing Excel file: ${file.name}`);
+      const excelData = await parseExcelFile(file);
       setExtractedData(excelData);
       
       console.log(`🎉 Excel file parsed successfully:`, {
@@ -92,441 +76,157 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
         applications: excelData.applications?.length || 0
       });
       
-      if (excelData.controls.length > 0) {
-        console.log(`🔍 Sample control with frequency:`, excelData.controls[0]);
-      }
-      
     } catch (error) {
       console.error('❌ Error processing Excel file:', error);
       alert('Error processing Excel file. Please check the format and try again.');
+      setUploadedFile(null);
+      setExtractedData(null);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Helper function for extracting meaningful titles from real descriptions
-  const getShortDescriptionForParsing = (fullDescription: string, type: 'control' | 'itac' | 'report', reportName?: string, processName?: string): string => {
-    console.log(`📝 getShortDescriptionForParsing called with: "${fullDescription.substring(0, 50)}..." type: ${type}`);
-    
-    // For reports, use the Report Name field directly
-    if (type === 'report' && reportName) {
-      console.log(`✅ Using report name: ${reportName}`);
-      return reportName;
-    }
-    
-    // For ITACs, use the Process field directly
-    if (type === 'itac' && processName) {
-      console.log(`✅ Using process name: ${processName}`);
-      return processName;
-    }
-    
-    // For ITGCs, extract main topic from description
-    if (type === 'control') {
-      const desc = fullDescription.toLowerCase();
+  // ✅ NEW: Helper function to format dates for HTML date inputs
+  const formatDateForInput = (excelDate: string): string => {
+    try {
+      // Handle various date formats from Excel
+      console.log('🗓️ Formatting date:', excelDate);
       
-      if (desc.includes('back-up') || desc.includes('backup')) {
-        console.log(`✅ Identified as System Backups`);
-        return 'System Backups';
-      }
-      if (desc.includes('access') && desc.includes('review')) {
-        console.log(`✅ Identified as Access Review`);
-        return 'Access Review';
-      }
-      if (desc.includes('physical access')) {
-        console.log(`✅ Identified as Physical Security`);
-        return 'Physical Security';
-      }
-      if (desc.includes('password')) {
-        console.log(`✅ Identified as Password Management`);
-        return 'Password Management';
-      }
-      if (desc.includes('change') && (desc.includes('management') || desc.includes('approval'))) {
-        console.log(`✅ Identified as Change Management`);
-        return 'Change Management';
-      }
-      if (desc.includes('monitoring') || desc.includes('log')) {
-        console.log(`✅ Identified as System Monitoring`);
-        return 'System Monitoring';
-      }
-      if (desc.includes('privilege')) {
-        console.log(`✅ Identified as Privileged Access`);
-        return 'Privileged Access';
-      }
-      if (desc.includes('patch') || desc.includes('update')) {
-        console.log(`✅ Identified as Patch Management`);
-        return 'Patch Management';
-      }
-      if (desc.includes('testing') && desc.includes('program')) {
-        console.log(`✅ Identified as Testing Controls`);
-        return 'Testing Controls';
-      }
-      if (desc.includes('approval') && desc.includes('program')) {
-        console.log(`✅ Identified as Change Approval`);
-        return 'Change Approval';
-      }
-      if (desc.includes('vulnerability')) {
-        console.log(`✅ Identified as Vulnerability Management`);
-        return 'Vulnerability Management';
-      }
-      if (desc.includes('segregation') && desc.includes('duties')) {
-        console.log(`✅ Identified as Segregation of Duties`);
-        return 'Segregation of Duties';
-      }
-      if (desc.includes('encryption')) {
-        console.log(`✅ Identified as Data Encryption`);
-        return 'Data Encryption';
-      }
-      if (desc.includes('network') || desc.includes('firewall')) {
-        console.log(`✅ Identified as Network Security`);
-        return 'Network Security';
+      // If it's already in YYYY-MM-DD format, return as-is
+      if (/^\d{4}-\d{2}-\d{2}$/.test(excelDate)) {
+        return excelDate;
       }
       
-      // Fallback: return first meaningful phrase
-      const words = fullDescription.split(' ');
-      const fallback = words.slice(0, 3).join(' ') + (words.length > 3 ? '...' : '');
-      console.log(`⚠️ Using fallback title: ${fallback}`);
-      return fallback;
-    }
-    
-    // Fallback for other types
-    const fallback = fullDescription.split(' ').slice(0, 3).join(' ') + '...';
-    console.log(`⚠️ Using generic fallback: ${fallback}`);
-    return fallback;
-  };
-
-  // Helper function for parsing risk ratings
-  const parseRiskRating = (value: string): string => {
-    const lowerValue = value.toLowerCase().trim();
-    console.log(`🔍 Parsing risk rating: "${value}" -> "${lowerValue}"`);
-    
-    if (lowerValue === 'h' || lowerValue.includes('high')) {
-      console.log(`✅ Risk rating identified as High`);
-      return 'High';
-    }
-    if (lowerValue === 'l' || lowerValue.includes('low')) {
-      console.log(`✅ Risk rating identified as Low`);
-      return 'Low';
-    }
-    console.log(`✅ Risk rating identified as Medium (default)`);
-    return 'Medium';
-  };
-
-  // NEW: Helper function for parsing frequency values - matches sampling engine expectations
-  const parseFrequency = (value: string): string => {
-    if (!value) {
-      console.log(`⚠️ No frequency value provided, defaulting to Monthly`);
-      return 'Monthly';
-    }
-    
-    const lowerValue = value.toLowerCase().trim();
-    console.log(`🔍 Parsing frequency: "${value}" -> "${lowerValue}"`);
-    
-    // Map Excel frequency values to EXACT format expected by sampling engine
-    if (lowerValue.includes('annual') || lowerValue === 'yearly' || lowerValue === '1/year' || lowerValue === 'annually') {
-      console.log(`✅ Frequency identified as Annually`);
-      return 'Annually';
-    }
-    if (lowerValue.includes('quarter') || lowerValue === '4/year' || lowerValue.includes('q1') || lowerValue.includes('q2') || lowerValue.includes('q3') || lowerValue.includes('q4') || lowerValue === 'quarterly') {
-      console.log(`✅ Frequency identified as Quarterly`);
-      return 'Quarterly';
-    }
-    if (lowerValue.includes('month') || lowerValue === '12/year' || lowerValue.includes('/month') || lowerValue === 'monthly') {
-      console.log(`✅ Frequency identified as Monthly`);
-      return 'Monthly';
-    }
-    if (lowerValue.includes('week') || lowerValue === '52/year' || lowerValue.includes('/week') || lowerValue === 'weekly') {
-      console.log(`✅ Frequency identified as Weekly`);
-      return 'Weekly';
-    }
-    if (lowerValue.includes('daily') || lowerValue.includes('/day')) {
-      console.log(`✅ Frequency identified as Daily`);
-      return 'Daily';
-    }
-    if (lowerValue.includes('as needed') || lowerValue.includes('adhoc') || lowerValue.includes('ad hoc') || lowerValue === 'n/a') {
-      console.log(`✅ Frequency identified as As needed`);
-      return 'As needed';
-    }
-    if (lowerValue.includes('continuous') || lowerValue.includes('ongoing') || lowerValue.includes('real-time')) {
-      console.log(`✅ Frequency identified as Continuous`);
-      return 'Continuous';
-    }
-    
-    // Default fallback - use Monthly as safe default
-    console.log(`⚠️ Unknown frequency "${value}", defaulting to Monthly`);
-    return 'Monthly';
-  };
-
-  // FIXED: parseControlsFromSheet now extracts Column F (frequency)
-  const parseControlsFromSheet = (data: any[][], sheetName: string): ExtractedControl[] => {
-    console.log(`🚀 parseControlsFromSheet called for sheet: ${sheetName}`);
-    console.log(`📊 Input data has ${data.length} rows`);
-    
-    if (data.length < 3) {
-      console.log(`⚠️ Not enough rows in sheet ${sheetName}, returning empty array`);
-      return [];
-    }
-    
-    const controls: ExtractedControl[] = [];
-    
-    console.log(`🔍 Analyzing sheet structure for ${sheetName}:`);
-    console.log(`   Row 0 (headers):`, data[0]);
-    console.log(`   Row 1 (sub-headers):`, data[1]);
-    console.log(`   Row 2 (first data):`, data[2]);
-    
-    // Start from row 2 (index 2) to skip headers
-    for (let i = 2; i < data.length; i++) {
-      const row = data[i];
-      console.log(`\n🔍 Processing row ${i + 1}:`, row);
-      
-      if (!row || row.length === 0) {
-        console.log(`⚠️ Skipping empty row ${i + 1}`);
-        continue;
-      }
-      
-      // Check if we have the essential columns (C and D)
-      if (!row[2] || !row[3]) {
-        console.log(`⚠️ Skipping row ${i + 1} - missing control ID (C) or description (D)`);
-        continue;
-      }
-      
-      try {
-        // Extract actual data from Excel columns - NOW INCLUDING COLUMN F
-        const controlId = row[2]?.toString().trim(); // Column C - Control ID
-        const actualDescription = row[3]?.toString().trim(); // Column D - Control Description
-        const riskRating = row[4]?.toString().trim() || 'M'; // Column E - Risk Rating
-        const frequencyRaw = row[5]?.toString().trim() || 'Monthly'; // Column F - Frequency ✅ ADDED!
-        
-        console.log(`📝 Extracted data from row ${i + 1}:`);
-        console.log(`   Control ID: "${controlId}"`);
-        console.log(`   Description: "${actualDescription}"`);
-        console.log(`   Risk Rating: "${riskRating}"`);
-        console.log(`   Frequency (raw): "${frequencyRaw}"`); // ✅ NEW LOG
-        
-        if (!actualDescription || actualDescription.length < 5) {
-          console.log(`⚠️ Skipping row ${i + 1} - description too short: "${actualDescription}"`);
-          continue;
+      // Handle formats like "8.30.2025" or "10.1.2025"
+      if (excelDate.includes('.')) {
+        const parts = excelDate.split('.');
+        if (parts.length === 3) {
+          const month = parts[0].padStart(2, '0');
+          const day = parts[1].padStart(2, '0');
+          const year = parts[2];
+          const formatted = `${year}-${month}-${day}`;
+          console.log('🗓️ Converted date:', excelDate, '→', formatted);
+          return formatted;
         }
-        
-        // Generate meaningful title from REAL description
-        const shortTitle = getShortDescriptionForParsing(actualDescription, 'control');
-        console.log(`🏷️ Generated title for "${actualDescription}": "${shortTitle}"`);
-        
-        // Parse frequency to standard format
-        const parsedFrequency = parseFrequency(frequencyRaw);
-        console.log(`📅 Parsed frequency: "${frequencyRaw}" -> "${parsedFrequency}"`);
-        
-        const control: ExtractedControl = {
-          id: controlId,
-          name: shortTitle, // This will be "System Backups", "Access Review", etc.
-          description: actualDescription, // Full real description from Excel
-          riskRating: parseRiskRating(riskRating),
-          frequency: parsedFrequency, // ✅ NEW FIELD - Now includes actual Excel frequency!
-          controlFamily: 'ITGC',
-          testingStatus: 'Not Started'
-        };
-        
-        controls.push(control);
-        console.log(`✅ Successfully added control:`, {
-          id: control.id,
-          name: control.name,
-          description: control.description.substring(0, 50) + '...',
-          riskRating: control.riskRating,
-          frequency: control.frequency // ✅ NEW LOG
-        });
-        
-      } catch (err) {
-        console.error(`❌ Error parsing control row ${i + 1}:`, err);
-      }
-    }
-    
-    console.log(`🎉 parseControlsFromSheet completed for ${sheetName}`);
-    console.log(`📊 Total controls parsed: ${controls.length}`);
-    
-    // ✅ NEW: Log frequency distribution
-    const frequencyCounts = controls.reduce((acc, control) => {
-      acc[control.frequency] = (acc[control.frequency] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    console.log(`📊 Frequency distribution:`, frequencyCounts);
-    
-    return controls;
-  };
-
-  const parseITACsFromSheet = (data: any[][], sheetName: string): ExtractedITAC[] => {
-    console.log(`🚀 parseITACsFromSheet called for sheet: ${sheetName}`);
-    console.log(`📊 Input data has ${data.length} rows`);
-    
-    if (data.length < 2) {
-      console.log(`⚠️ Not enough rows in sheet ${sheetName}`);
-      return [];
-    }
-    
-    const itacs: ExtractedITAC[] = [];
-    const seenIds = new Set<string>();
-    
-    // Start from row 6 (index 6) where actual ITAC data begins
-    for (let i = 6; i < data.length; i++) {
-      const row = data[i];
-      console.log(`\n🔍 Processing ITAC row ${i + 1}:`, row);
-      
-      if (!row || row.length === 0) {
-        console.log(`⚠️ Skipping empty row ${i + 1}`);
-        continue;
       }
       
-      const firstCol = row[0]?.toString().trim();
-      if (!firstCol || !firstCol.match(/^\d+$/)) {
-        console.log(`⚠️ Skipping non-data row ${i + 1}: "${firstCol}"`);
-        continue;
-      }
-      
-      try {
-        const controlId = row[1]?.toString().trim() || 'Unknown ID'; // Column B
-        const processName = row[2]?.toString().trim() || 'Unknown Process'; // Column C
-        const controlDescription = row[3]?.toString().trim() || ''; // Column D
-        const owner = row[5]?.toString().trim() || 'Unknown Owner'; // Column F
-        const riskRating = row[7]?.toString().trim() || 'L'; // Column H
-        const system = row[8]?.toString().trim() || 'Unknown System'; // Column I
-        
-        console.log(`📝 Extracted ITAC data from row ${i + 1}:`);
-        console.log(`   Control ID: "${controlId}"`);
-        console.log(`   Process: "${processName}"`);
-        console.log(`   System: "${system}"`);
-        
-        // Skip duplicates
-        if (seenIds.has(controlId)) {
-          console.log(`⚠️ Skipping duplicate ITAC: ${controlId}`);
-          continue;
+      // Handle formats like "8/30/2025" or "10/1/2025"
+      if (excelDate.includes('/')) {
+        const parts = excelDate.split('/');
+        if (parts.length === 3) {
+          const month = parts[0].padStart(2, '0');
+          const day = parts[1].padStart(2, '0');
+          const year = parts[2];
+          const formatted = `${year}-${month}-${day}`;
+          console.log('🗓️ Converted date:', excelDate, '→', formatted);
+          return formatted;
         }
-        
-        seenIds.add(controlId);
-        
-        const itac: ExtractedITAC = {
-          id: controlId,
-          system: system,
-          controlType: controlDescription || processName,
-          owner: owner,
-          riskLevel: parseRiskRating(riskRating) as any,
-          testingStatus: 'Not Started',
-          controlDescription: controlDescription,
-          processName: processName
-        };
-        
-        itacs.push(itac);
-        console.log(`✅ Successfully added ITAC: ${itac.id}`);
-        
-      } catch (err) {
-        console.error(`❌ Error parsing ITAC row ${i + 1}:`, err);
-      }
-    }
-    
-    console.log(`🎉 parseITACsFromSheet completed: ${itacs.length} ITACs`);
-    return itacs;
-  };
-
-  const parseReportsFromSheet = (data: any[][], sheetName: string): ExtractedKeyReport[] => {
-    console.log(`🚀 parseReportsFromSheet called for sheet: ${sheetName}`);
-    console.log(`📊 Input data has ${data.length} rows`);
-    
-    if (data.length < 2) {
-      console.log(`⚠️ Not enough rows in sheet ${sheetName}`);
-      return [];
-    }
-    
-    const reports: ExtractedKeyReport[] = [];
-    
-    // Start from row 1 (index 1) to skip header
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      console.log(`\n🔍 Processing report row ${i + 1}:`, row);
-      
-      if (!row || row.length === 0) {
-        console.log(`⚠️ Skipping empty row ${i + 1}`);
-        continue;
       }
       
-      try {
-        const reportName = row[3]?.toString().trim() || ''; // Column D - Report Name
-        const controlDescription = row[4]?.toString().trim() || ''; // Column E - Description
-        const application = row[6]?.toString().trim() || ''; // Column G - Application
-        
-        console.log(`📝 Extracted report data from row ${i + 1}:`);
-        console.log(`   Report Name: "${reportName}"`);
-        console.log(`   Application: "${application}"`);
-        
-        if (!reportName || reportName.length < 2) {
-          console.log(`⚠️ Skipping row ${i + 1} - no meaningful report name`);
-          continue;
-        }
-        
-        const report: ExtractedKeyReport = {
-          id: `RPT-${i}`,
-          name: reportName, // Use actual report name from Excel
-          source: application || 'Unknown Source',
-          frequency: 'Monthly',
-          owner: 'Unknown Owner',
-          reviewStatus: 'Current',
-          description: controlDescription || reportName
-        };
-        
-        reports.push(report);
-        console.log(`✅ Successfully added report: ${report.name}`);
-        
-      } catch (err) {
-        console.error(`❌ Error parsing report row ${i + 1}:`, err);
+      // Handle Excel serial date numbers
+      if (!isNaN(Number(excelDate))) {
+        const serialDate = Number(excelDate);
+        // Excel epoch starts at 1900-01-01, but Excel incorrectly treats 1900 as a leap year
+        const excelEpoch = new Date(1900, 0, 1);
+        const jsDate = new Date(excelEpoch.getTime() + (serialDate - 2) * 24 * 60 * 60 * 1000);
+        const formatted = jsDate.toISOString().split('T')[0];
+        console.log('🗓️ Converted Excel serial date:', serialDate, '→', formatted);
+        return formatted;
       }
+      
+      // Try to parse as a regular date string
+      const parsedDate = new Date(excelDate);
+      if (!isNaN(parsedDate.getTime())) {
+        const formatted = parsedDate.toISOString().split('T')[0];
+        console.log('🗓️ Parsed date string:', excelDate, '→', formatted);
+        return formatted;
+      }
+      
+      console.warn('🗓️ Could not parse date:', excelDate);
+      return '';
+    } catch (error) {
+      console.error('🗓️ Error formatting date:', excelDate, error);
+      return '';
     }
-    
-    console.log(`🎉 parseReportsFromSheet completed: ${reports.length} reports`);
-    return reports;
   };
 
-  // UPDATED: Parse Excel file for profile data AND real content
-  const parseExcelFile = async (file: File): Promise<{profileData: any, excelData: ExcelData}> => {
+  // Enhanced parsing - includes Profile sheet auto-fill with DATE EXTRACTION
+  const parseExcelFile = async (file: File): Promise<ExcelData> => {
     console.log(`🚀 parseExcelFile called for: ${file.name}`);
     
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       
-      reader.onload = async (e) => {
+      reader.onload = (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           
           console.log(`📋 Excel workbook loaded with ${workbook.SheetNames.length} sheets:`, workbook.SheetNames);
           
-          let profileData = null;
-          let applications: any[] = [];
           let controls: ExtractedControl[] = [];
           let itacs: ExtractedITAC[] = [];
           let keyReports: ExtractedKeyReport[] = [];
+          let applications: any[] = [];
           
-          // Parse Profile sheet for form auto-fill
+          // ✅ FIXED: Enhanced Profile sheet parsing to include start and end dates
           if (workbook.SheetNames.includes('Profile')) {
             const profileSheet = workbook.Sheets['Profile'];
             const profileRows = XLSX.utils.sheet_to_json(profileSheet, { header: 1 }) as any[][];
             
-            console.log('📋 Profile sheet found. Processing...');
+            console.log('📋 Profile sheet found. Auto-filling form...');
+            console.log('📋 Profile sheet data:', profileRows);
             
-            profileData = {};
             for (let i = 0; i < profileRows.length; i++) {
               const row = profileRows[i];
               if (row && row.length >= 2 && row[0] && row[1]) {
                 const key = row[0].toString().toLowerCase().trim();
                 const value = row[1].toString().trim();
                 
-                if (key === 'company') profileData.companyName = value;
-                else if (key === 'client id' || key === 'clientid') profileData.clientId = value;
-                else if (key === 'url' || key.includes('website')) profileData.website = value;
-                else if (key === 'lead finance' || key.includes('client lead')) profileData.clientLead = value;
-                else if (key === 'lead itgc' || key.includes('audit lead')) profileData.auditLead = value;
+                console.log(`📋 Processing Profile row ${i}: "${key}" = "${value}"`);
+                
+                if (key === 'company' || key.includes('company name')) {
+                  console.log('📋 Auto-filling company name:', value);
+                  setFormData(prev => ({ ...prev, companyName: value }));
+                }
+                else if (key === 'url' || key.includes('website') || key.includes('domain')) {
+                  console.log('📋 Auto-filling website:', value);
+                  setFormData(prev => ({ ...prev, website: value }));
+                }
+                else if (key.includes('client lead') || key === 'lead finance') {
+                  console.log('📋 Auto-filling client lead:', value);
+                  setFormData(prev => ({ ...prev, clientLead: value }));
+                }
+                else if (key.includes('audit lead') || key === 'lead itgc') {
+                  console.log('📋 Auto-filling audit lead:', value);
+                  setFormData(prev => ({ ...prev, auditLead: value }));
+                }
+                else if (key === 'client id' || key === 'clientid') {
+                  console.log('📋 Auto-filling client ID:', value);
+                  setFormData(prev => ({ ...prev, clientId: value }));
+                }
+                // ✅ NEW: Extract start date
+                else if (key === 'start date' || key.includes('start date')) {
+                  const formattedDate = formatDateForInput(value);
+                  console.log('📋 Auto-filling start date:', value, '→', formattedDate);
+                  setFormData(prev => ({ ...prev, startDate: formattedDate }));
+                }
+                // ✅ NEW: Extract end date
+                else if (key === 'end date' || key.includes('end date')) {
+                  const formattedDate = formatDateForInput(value);
+                  console.log('📋 Auto-filling end date:', value, '→', formattedDate);
+                  setFormData(prev => ({ ...prev, endDate: formattedDate }));
+                }
+                // ✅ NEW: Extract audit type
+                else if (key === 'audit' || key.includes('audit type')) {
+                  console.log('📋 Auto-filling audit type:', value);
+                  setFormData(prev => ({ ...prev, auditType: value }));
+                }
               }
             }
-            
-            console.log('📊 Profile data extracted:', profileData);
           }
           
-          // Parse each sheet for real data
+          // Parse each sheet for control data
           workbook.SheetNames.forEach(sheetName => {
             console.log(`🔍 Processing sheet: ${sheetName}`);
             const sheet = workbook.Sheets[sheetName];
@@ -551,60 +251,6 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
             }
           });
           
-          // Extract applications from Column G (keep existing logic)
-          try {
-            console.log('🔄 Extracting applications from Column G...');
-            
-            const sheetNames = ['Applications', 'Apps', 'Walkthrough', 'Key Reports', 'ITGCs', 'ITACs', workbook.SheetNames[0]];
-            let applicationsSheet = null;
-            let sheetNameUsed = '';
-            
-            for (const sheetName of sheetNames) {
-              if (workbook.SheetNames.includes(sheetName)) {
-                applicationsSheet = workbook.Sheets[sheetName];
-                sheetNameUsed = sheetName;
-                console.log(`📋 Found applications in sheet: ${sheetName}`);
-                break;
-              }
-            }
-            
-            if (applicationsSheet) {
-              const appRows = XLSX.utils.sheet_to_json(applicationsSheet, { header: 1 }) as any[][];
-              const uniqueAppNames = new Set<string>();
-              const tempApplications: any[] = [];
-              
-              for (let i = 1; i < appRows.length; i++) {
-                const row = appRows[i];
-                const appName = row[6]; // Column G
-                
-                if (appName && typeof appName === 'string' && appName.trim()) {
-                  const trimmedName = appName.trim();
-                  
-                  if (!uniqueAppNames.has(trimmedName)) {
-                    uniqueAppNames.add(trimmedName);
-                    
-                    const application = {
-                      id: `app-${uniqueAppNames.size}`,
-                      name: trimmedName,
-                      description: `${trimmedName} application for walkthrough testing`,
-                      riskLevel: 'medium',
-                      owner: row[7] || 'Unknown',
-                      category: row[8] || 'General'
-                    };
-                    
-                    tempApplications.push(application);
-                  }
-                }
-              }
-              
-              applications = tempApplications;
-              console.log(`📱 Extracted ${applications.length} unique applications`);
-            }
-          } catch (error) {
-            console.error('⚠️ Error extracting applications:', error);
-            applications = [];
-          }
-          
           const excelData: ExcelData = {
             controls,
             itacs,
@@ -616,9 +262,8 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
           console.log(`   📊 Controls: ${controls.length}`);
           console.log(`   📊 ITACs: ${itacs.length}`);
           console.log(`   📊 Key Reports: ${keyReports.length}`);
-          console.log(`   📊 Applications: ${applications.length}`);
           
-          resolve({ profileData, excelData });
+          resolve(excelData);
         } catch (error) {
           console.error('❌ Excel parsing error:', error);
           reject(error);
@@ -630,24 +275,262 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
     });
   };
 
+  // Simplified control parsing - focus on essential data
+  const parseControlsFromSheet = (data: any[][], sheetName: string): ExtractedControl[] => {
+    console.log(`🚀 Parsing controls from sheet: ${sheetName}`);
+    
+    if (data.length < 3) {
+      console.log(`⚠️ Not enough rows in sheet ${sheetName}`);
+      return [];
+    }
+    
+    const controls: ExtractedControl[] = [];
+    
+    // Start from row 2 (index 2) to skip headers
+    for (let i = 2; i < data.length; i++) {
+      const row = data[i];
+      
+      if (!row || row.length === 0 || !row[2] || !row[3]) {
+        continue; // Skip empty or invalid rows
+      }
+      
+      try {
+        const controlId = row[2]?.toString().trim();
+        const description = row[3]?.toString().trim();
+        const riskRating = row[4]?.toString().trim() || 'M';
+        const frequency = row[5]?.toString().trim() || 'Monthly';
+        
+        if (description && description.length > 5) {
+          const control: ExtractedControl = {
+            id: controlId,
+            name: getControlName(description),
+            description: description,
+            riskRating: normalizeRiskRating(riskRating),
+            frequency: normalizeFrequency(frequency),
+            controlFamily: 'ITGC',
+            testingStatus: 'Not Started'
+          };
+          
+          controls.push(control);
+          console.log(`✅ Added control: ${control.id} - ${control.name}`);
+        }
+      } catch (err) {
+        console.error(`❌ Error parsing control row ${i + 1}:`, err);
+      }
+    }
+    
+    console.log(`🎉 Parsed ${controls.length} controls from ${sheetName}`);
+    return controls;
+  };
+
+  // Simplified ITAC parsing
+  const parseITACsFromSheet = (data: any[][], sheetName: string): ExtractedITAC[] => {
+    console.log(`🚀 Parsing ITACs from sheet: ${sheetName}`);
+    
+    if (data.length < 6) return [];
+    
+    const itacs: ExtractedITAC[] = [];
+    
+    for (let i = 6; i < data.length; i++) {
+      const row = data[i];
+      
+      if (!row || !row[1]) continue;
+      
+      try {
+        const controlId = row[1]?.toString().trim();
+        const processName = row[2]?.toString().trim() || 'Unknown Process';
+        const system = row[8]?.toString().trim() || 'Unknown System';
+        const riskRating = row[7]?.toString().trim() || 'L';
+        
+        const itac: ExtractedITAC = {
+          id: controlId,
+          system: system,
+          controlType: processName,
+          owner: 'Unknown Owner',
+          riskLevel: normalizeRiskRating(riskRating) as any,
+          testingStatus: 'Not Started',
+          controlDescription: processName,
+          processName: processName
+        };
+        
+        itacs.push(itac);
+        console.log(`✅ Added ITAC: ${itac.id} - ${itac.system}`);
+        
+      } catch (err) {
+        console.error(`❌ Error parsing ITAC row ${i + 1}:`, err);
+      }
+    }
+    
+    console.log(`🎉 Parsed ${itacs.length} ITACs from ${sheetName}`);
+    return itacs;
+  };
+
+  // ✅ FIXED: Enhanced report parsing for walkthrough extraction
+  const parseReportsFromSheet = (data: any[][], sheetName: string): ExtractedKeyReport[] => {
+    console.log(`🚀 Parsing reports from sheet: ${sheetName}`);
+    console.log(`📊 Sheet has ${data.length} rows`);
+    
+    if (data.length < 2) return [];
+    
+    const reports: ExtractedKeyReport[] = [];
+    
+    // Let's inspect the header row to understand the structure
+    if (data.length > 0) {
+      console.log(`🔍 Header row (first 20 columns):`, data[0]?.slice(0, 20));
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      
+      if (!row || row.length === 0) {
+        console.log(`⚠️ Skipping empty row ${i}`);
+        continue;
+      }
+      
+      // Log the row for debugging
+      console.log(`🔍 Processing row ${i} (first 20 columns):`, row.slice(0, 20));
+      
+      try {
+        // Based on your original requirements and Excel structure:
+        // Column A (0) = #
+        // Column B (1) = Process / Business Process
+        // Column C (2) = Control Family  
+        // Column D (3) = Report Name ✅
+        // Column E (4) = Description
+        // Column F (5) = Report Type
+        // Column G (6) = Application ✅ (for walkthrough extraction)
+        // Column H (7) = Frequency
+        // ...
+        // Column Q (16) = Business Owner(s) ✅ (for walkthrough extraction)
+        
+        const reportName = row[3]?.toString().trim(); // Column D = Report Name
+        const description = row[4]?.toString().trim(); // Column E = Description
+        const reportType = row[5]?.toString().trim(); // Column F = Report Type
+        const application = row[6]?.toString().trim(); // Column G = Application 
+        const frequency = row[7]?.toString().trim(); // Column H = Frequency
+        const businessOwner = row[16]?.toString().trim(); // Column Q = Business Owner(s)
+        
+        console.log(`🔍 Extracted data for row ${i}:`, {
+          reportName,
+          application,
+          businessOwner,
+          frequency,
+          hasReportName: !!reportName,
+          hasApplication: !!application,
+          hasOwner: !!businessOwner
+        });
+        
+        if (reportName && reportName.length > 2) {
+          const report: ExtractedKeyReport = {
+            id: `RPT-${i}`,
+            name: reportName,
+            source: application || 'Unknown Source', // Keep source for backward compatibility
+            application: application, // ✅ ADD: Application field for walkthrough extraction
+            frequency: frequency || 'Monthly',
+            owner: businessOwner || 'Unknown Owner', // ✅ READ: Actual owner from Excel
+            reviewStatus: 'Current',
+            description: description || reportName,
+            reportType: reportType || 'Standard Report'
+          };
+          
+          reports.push(report);
+          console.log(`✅ Added report: ${report.name} (App: ${report.application}, Owner: ${report.owner})`);
+        } else {
+          console.log(`⚠️ Skipping row ${i} - no valid report name`);
+        }
+      } catch (err) {
+        console.error(`❌ Error parsing report row ${i}:`, err);
+      }
+    }
+    
+    console.log(`🎉 Parsed ${reports.length} reports from ${sheetName}`);
+    
+    // ✅ WALKTHROUGH PREVIEW: Log summary of applications and owners found
+    const applications = [...new Set(reports.map(r => r.application).filter(Boolean))];
+    const owners = [...new Set(reports.map(r => r.owner).filter(Boolean))];
+    const validReports = reports.filter(r => 
+      r.application && 
+      r.owner && 
+      r.application !== 'Unknown Source' && 
+      r.owner !== 'Unknown Owner'
+    );
+    
+    console.log(`📊 WALKTHROUGH PREVIEW:`);
+    console.log(`   📊 Found applications:`, applications);
+    console.log(`   📊 Found owners:`, owners);
+    console.log(`   📊 Valid reports for walkthroughs: ${validReports.length}`);
+    console.log(`   📊 Expected walkthrough applications: ~${validReports.length} (depends on unique app+owner combinations)`);
+    
+    // Show breakdown by application
+    const appBreakdown = applications.reduce((acc, app) => {
+      const appReports = validReports.filter(r => r.application === app);
+      const appOwners = [...new Set(appReports.map(r => r.owner))];
+      acc[app] = { reports: appReports.length, owners: appOwners.length, ownerNames: appOwners };
+      return acc;
+    }, {} as Record<string, any>);
+    
+    console.log(`   📊 Application breakdown:`, appBreakdown);
+    
+    return reports;
+  };
+
+  // Helper functions
+  const getControlName = (description: string): string => {
+    const desc = description.toLowerCase();
+    
+    if (desc.includes('backup')) return 'System Backups';
+    if (desc.includes('access') && desc.includes('review')) return 'Access Review';
+    if (desc.includes('password')) return 'Password Management';
+    if (desc.includes('change')) return 'Change Management';
+    if (desc.includes('monitoring')) return 'System Monitoring';
+    if (desc.includes('patch')) return 'Patch Management';
+    if (desc.includes('vulnerability')) return 'Vulnerability Management';
+    if (desc.includes('encryption')) return 'Data Encryption';
+    if (desc.includes('network')) return 'Network Security';
+    
+    // Fallback: first few words
+    return description.split(' ').slice(0, 3).join(' ') + '...';
+  };
+
+  const normalizeRiskRating = (value: string): string => {
+    const lower = value.toLowerCase().trim();
+    if (lower === 'h' || lower.includes('high')) return 'High';
+    if (lower === 'l' || lower.includes('low')) return 'Low';
+    return 'Medium';
+  };
+
+  const normalizeFrequency = (value: string): string => {
+    if (!value) return 'Monthly';
+    const lower = value.toLowerCase().trim();
+    
+    if (lower.includes('annual')) return 'Annually';
+    if (lower.includes('quarter')) return 'Quarterly';
+    if (lower.includes('month')) return 'Monthly';
+    if (lower.includes('week')) return 'Weekly';
+    if (lower.includes('daily')) return 'Daily';
+    
+    return 'Monthly';
+  };
+
   const handleSubmit = () => {
     if (!formData.companyName) {
-      alert('Please enter a company name');
+      alert('Please enter company name');
       return;
     }
     
-    console.log(`🚀 Submitting audit with data:`, {
+    if (!formData.website) {
+      alert('Please enter website URL');
+      return;
+    }
+    
+    console.log('🎉 Submitting audit with extracted data:', {
       formData,
       hasExcelData: !!extractedData,
-      excelDataSummary: extractedData ? {
-        controls: extractedData.controls.length,
-        itacs: extractedData.itacs.length,
-        keyReports: extractedData.keyReports.length,
-        applications: extractedData.applications?.length || 0
-      } : 'None'
+      controlCount: extractedData?.controls.length || 0,
+      keyReportCount: extractedData?.keyReports.length || 0
     });
     
-    // Pass the REAL Excel data
+    // Submit with Excel data so client gets pre-configured audit
     onSubmit(formData, extractedData || undefined);
   };
 
@@ -657,163 +540,237 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
     }
   };
 
-  const getButtonText = () => {
-    if (extractedData) {
-      const totalItems = extractedData.controls.length + extractedData.itacs.length + extractedData.keyReports.length;
-      const appCount = extractedData.applications?.length || 0;
-      return `Create Audit with ${totalItems} Items${appCount > 0 ? ` + ${appCount} Walkthroughs` : ''}`;
-    }
-    return 'Create Audit';
-  };
-
   return (
-    <div className="px-4 py-6 sm:px-0">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="min-h-screen bg-gray-900 px-4 py-4">
+      <div className="flex items-center gap-4 mb-4">
         <button 
           onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-5 w-5 text-gray-300" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Create New Audit</h1>
-          <p className="text-gray-600">Set up a new audit engagement</p>
+          <h1 className="text-2xl font-bold text-white">Create New Audit</h1>
+          <p className="text-gray-300">Set up audit with control framework for client</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="bg-gray-800 rounded-lg shadow-md p-4">
+        {/* Upload Section FIRST - Better workflow */}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-2">
+            Upload Control Framework 
+            <span className="text-sm text-gray-400 font-normal">(Required for client auto-matching and walkthroughs)</span>
+          </h3>
+          
+          <div className="bg-blue-900 border border-blue-700 rounded-lg p-3 mb-3">
+            <div className="flex items-start">
+              <AlertCircle className="w-4 h-4 text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
+              <div>
+                <h4 className="text-sm font-medium text-blue-300">Enhanced Features</h4>
+                <p className="text-xs text-gray-300 mt-1">
+                  Upload first to auto-fill form fields. Client will be auto-matched and see your pre-configured controls. 
+                  <strong className="text-blue-300"> NEW:</strong> Walkthroughs auto-generated from Key Reports.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div 
+            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+              isDragOver 
+                ? 'border-blue-400 bg-blue-900/30' 
+                : extractedData
+                ? 'border-green-400 bg-green-900/30'
+                : 'border-gray-600 hover:border-gray-500'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {extractedData ? (
+              <CheckCircle className="h-6 w-6 mx-auto mb-2 text-green-400" />
+            ) : (
+              <Upload className={`h-6 w-6 mx-auto mb-2 ${isDragOver ? 'text-blue-400' : 'text-gray-400'}`} />
+            )}
+            
+            <p className="text-gray-300 mb-2 text-sm">
+              {extractedData 
+                ? `✅ Controls loaded: ${extractedData.controls.length} ITGCs, ${extractedData.itacs.length} ITACs, ${extractedData.keyReports.length} Reports`
+                : isDragOver 
+                ? 'Drop your Excel file here'
+                : 'Upload Excel file with ITGCs, ITACs, and Key Reports'
+              }
+            </p>
+            
+            {!extractedData && (
+              <>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileInput}
+                  className="hidden"
+                  id="excel-upload"
+                />
+                <label
+                  htmlFor="excel-upload"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                >
+                  Choose Control Framework File
+                </label>
+              </>
+            )}
+
+            {isProcessing && (
+              <div className="mt-2">
+                <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span className="ml-2 text-sm text-gray-300">Processing controls and extracting walkthroughs...</span>
+              </div>
+            )}
+          </div>
+
+          {uploadedFile && (
+            <div className="mt-3 p-3 bg-gray-700 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <FileText className="h-4 w-4 text-gray-400" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-white">{uploadedFile.name}</p>
+                  {extractedData && (
+                    <p className="text-xs text-green-400">
+                      ✓ Successfully processed control framework + walkthrough data
+                    </p>
+                  )}
+                </div>
+                {extractedData && <CheckCircle className="h-4 w-4 text-green-400" />}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Form Fields BELOW Upload - Gets auto-filled */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Company Name *
             </label>
             <input
               type="text"
               value={formData.companyName}
               onChange={(e) => handleInputChange('companyName', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
               placeholder="Enter company name"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Website *
+            </label>
+            <input
+              type="text"
+              value={formData.website}
+              onChange={(e) => handleInputChange('website', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
+              placeholder="www.company.com"
+            />
+            <p className="text-xs text-gray-400 mt-1">Used for client auto-matching</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Audit Type
+            </label>
+            <select
+              value={formData.auditType}
+              onChange={(e) => handleInputChange('auditType', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
+            >
+              <option value="SOC 2">SOC 2</option>
+              <option value="SOC 1">SOC 1</option>
+              <option value="SOX">SOX</option>
+              <option value="ISAE 3402">ISAE 3402</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Client ID
             </label>
             <input
               type="text"
               value={formData.clientId}
               onChange={(e) => handleInputChange('clientId', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
               placeholder="Enter client ID"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Website
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Start Date
             </label>
             <input
-              type="text"
-              value={formData.website}
-              onChange={(e) => handleInputChange('website', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="company.com"
+              type="date"
+              value={formData.startDate}
+              onChange={(e) => handleInputChange('startDate', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              End Date
+            </label>
+            <input
+              type="date"
+              value={formData.endDate}
+              onChange={(e) => handleInputChange('endDate', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Client Lead
             </label>
             <input
               type="text"
               value={formData.clientLead}
               onChange={(e) => handleInputChange('clientLead', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
               placeholder="Enter client lead name"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Audit Lead
             </label>
             <input
               type="text"
               value={formData.auditLead}
               onChange={(e) => handleInputChange('auditLead', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white"
               placeholder="Enter audit lead name"
             />
           </div>
         </div>
 
-        {/* Excel File Upload */}
-        <div className="mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Excel File (Optional)</h3>
-          <div 
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-              isDragOver 
-                ? 'border-blue-400 bg-blue-50' 
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <Upload className={`h-8 w-8 mx-auto mb-2 ${isDragOver ? 'text-blue-500' : 'text-gray-400'}`} />
-            <p className="text-gray-600 mb-2">
-              {isDragOver ? 'Drop your Excel file here' : 'Upload Excel file with Controls, ITACs, Key Reports, and Applications'}
-            </p>
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileInput}
-              className="hidden"
-              id="excel-upload"
-            />
-            <label
-              htmlFor="excel-upload"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
-            >
-              Choose Excel File
-            </label>
-          </div>
-
-          {uploadedFile && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <FileText className="h-5 w-5 text-gray-400" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{uploadedFile.name}</p>
-                  {isProcessing && <p className="text-xs text-gray-500">Processing real Excel data...</p>}
-                  {extractedData && (
-                    <p className="text-xs text-green-600">
-                      ✓ Extracted: {extractedData.controls.length} controls, {extractedData.itacs.length} ITACs, {extractedData.keyReports.length} key reports
-                      {extractedData.applications && extractedData.applications.length > 0 && (
-                        <span>, {extractedData.applications.length} unique applications for walkthroughs</span>
-                      )}
-                    </p>
-                  )}
-                </div>
-                {extractedData && <CheckCircle className="h-5 w-5 text-green-500" />}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-4">
+        {/* Compact Submit Buttons */}
+        <div className="flex gap-3">
           <button
             onClick={handleSubmit}
-            disabled={isProcessing}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50"
+            disabled={isProcessing || !formData.companyName}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
           >
-            {getButtonText()}
+            {extractedData 
+              ? `Create Audit with ${extractedData.controls.length + extractedData.itacs.length + extractedData.keyReports.length} Controls + Walkthroughs`
+              : 'Create Basic Audit'
+            }
           </button>
           <button
             onClick={onBack}
-            className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-6 py-2 rounded-lg transition-colors"
+            className="bg-gray-600 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg transition-colors text-sm"
           >
             Cancel
           </button>

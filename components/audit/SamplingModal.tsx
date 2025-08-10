@@ -1,4 +1,5 @@
-// components/audit/SamplingModal.tsx - FIXED TYPE ERRORS
+// components/audit/SamplingModal.tsx - FIXED import/export issue
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -17,10 +18,15 @@ import {
   Clock,
   User,
   FileText,
-  Send
+  Send,
+  Info
 } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { SamplingConfig, GeneratedSample, EvidenceRequest } from '../../types';
+import { 
+  createSamplingConfigFromControlData, 
+  SamplingEngine
+} from '../../utils/samplingEngine';
 
 interface SamplingModalProps {
   isOpen: boolean;
@@ -31,12 +37,40 @@ interface SamplingModalProps {
     startDate: Date;
     endDate: Date;
   };
+  generatedSamples: GeneratedSample[];
   onSave: () => void;
   onApprove: () => void;
   onCreateEvidenceRequest: () => void;
+  controlData?: {
+    'Control frequency': string;
+    'PwC risk rating (H/M/L)': string;
+    [key: string]: any;
+  };
 }
 
 type TabType = 'configuration' | 'generation' | 'review' | 'evidence';
+
+interface FrequencyInfo {
+  frequency: string;
+  samplesPerYear: number;
+  requiresSampling: boolean;
+  description: string;
+}
+
+// Frequency information for display - matches Excel data exactly
+const FREQUENCY_DISPLAY_INFO: FrequencyInfo[] = [
+  { frequency: 'Annually', samplesPerYear: 1, requiresSampling: true, description: 'One sample per year' },
+  { frequency: 'Quarterly', samplesPerYear: 4, requiresSampling: true, description: 'One sample per quarter' },
+  { frequency: 'Monthly', samplesPerYear: 6, requiresSampling: true, description: 'Sample every other month' },
+  { frequency: 'Weekly', samplesPerYear: 8, requiresSampling: true, description: 'Sample ~2 per quarter' },
+  { frequency: 'Daily', samplesPerYear: 12, requiresSampling: true, description: 'Sample ~1 per month' },
+  { frequency: 'Bi-weekly', samplesPerYear: 6, requiresSampling: true, description: 'Sample every other month' },
+  { frequency: 'Semi-annually', samplesPerYear: 2, requiresSampling: true, description: 'Two samples per year' },
+  { frequency: 'Continuous', samplesPerYear: 0, requiresSampling: false, description: 'No sampling - ongoing monitoring' },
+  { frequency: 'As needed', samplesPerYear: 0, requiresSampling: false, description: 'No sampling - event-driven' },
+  { frequency: 'One-time', samplesPerYear: 0, requiresSampling: false, description: 'No sampling - single event' },
+  { frequency: 'Ad hoc', samplesPerYear: 0, requiresSampling: false, description: 'No sampling - irregular basis' }
+];
 
 export default function SamplingModal({
   isOpen,
@@ -46,7 +80,8 @@ export default function SamplingModal({
   auditPeriod,
   onSave,
   onApprove,
-  onCreateEvidenceRequest
+  onCreateEvidenceRequest,
+  controlData
 }: SamplingModalProps) {
   const { 
     samplingConfigs, 
@@ -54,17 +89,24 @@ export default function SamplingModal({
     handleSamplingConfigSave,
     handleGenerateSamples,
     handleApproveSamples,
-    handleCreateEvidenceRequest, // FIXED: Now properly updates status
+    handleCreateEvidenceRequest,
     user
   } = useAppState();
   
   const [activeTab, setActiveTab] = useState<TabType>('configuration');
   const [populationSize, setPopulationSize] = useState(365);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showManualOverride, setShowManualOverride] = useState(false);
+  
+  const [excelControlData, setExcelControlData] = useState(controlData || {
+    'Control frequency': 'Annually',
+    'PwC risk rating (H/M/L)': 'M'
+  });
+  
   const [config, setConfig] = useState<SamplingConfig>({
     id: '',
     controlId: '',
-    sampleSize: 25,
+    sampleSize: 1,
     methodology: 'random',
     timePeriod: {
       type: 'calendar_quarters',
@@ -80,146 +122,157 @@ export default function SamplingModal({
     notes: ''
   });
 
-  // Get persisted samples for this control's config - NO LOCAL STATE!
-  const currentConfig = samplingConfigs.find(c => c.controlId === controlId);
-  const currentSamples = currentConfig ? generatedSamples.filter(s => s.samplingConfigId === currentConfig.id) : [];
+  // Get persisted samples for this control's config
+  //const currentConfig = samplingConfigs.find(c => c.controlId === controlId);
+  //const currentSamples = currentConfig ? generatedSamples.filter(s => s.samplingConfigId === currentConfig.id) : [];
+// Get persisted samples for this control's config - FIXED: Find ALL configs
+const controlConfigs = samplingConfigs.filter(c => c.controlId === controlId);
+const configIds = controlConfigs.map(c => c.id);
+const currentSamples = generatedSamples.filter(s => configIds.includes(s.samplingConfigId));
+const currentConfig = controlConfigs.length > 0 ? controlConfigs[controlConfigs.length - 1] : null;
 
-  // Initialize with default configuration
+// 🔍 DEBUG: Add this line
+console.log('🔍 SamplingModal Debug:', { controlId, controlConfigs: controlConfigs.length, configIds, currentSamples: currentSamples.length, generatedSamples: generatedSamples.length });
+
+
+
+  // Calculate frequency-based configuration
+  const calculateFrequencyBasedConfig = (controlData: any) => {
+    const requiresSampling = SamplingEngine.shouldSampleControl(controlData);
+    
+    if (!requiresSampling) {
+      return {
+        sampleSize: 0,
+        methodology: 'random' as const,
+        requiresSampling: false,
+        notes: `No sampling required for frequency: ${controlData['Control frequency']}`
+      };
+    }
+
+    const sampleSize = SamplingEngine.calculateSampleSizeFromFrequency(controlData, 12);
+    const methodology = SamplingEngine.getSamplingMethodology(controlData);
+    
+    const result = {
+      sampleSize,
+      methodology,
+      requiresSampling: true,
+      notes: `Frequency-based sampling: ${controlData['Control frequency']} (${sampleSize} samples), Risk: ${controlData['PwC risk rating (H/M/L)']} (${methodology} methodology)`
+    };
+    
+    return result;
+  };
+
+  // Get frequency information for display
+  const getFrequencyInfo = (frequency: string): FrequencyInfo | null => {
+    return FREQUENCY_DISPLAY_INFO.find(f => 
+      f.frequency.toLowerCase() === frequency.toLowerCase()
+    ) || null;
+  };
+
+  // Initialize configuration
   useEffect(() => {
     if (isOpen && controlId) {
       const existingConfig = samplingConfigs.find(c => c.controlId === controlId);
       if (existingConfig) {
-        // Ensure sample size is never 0
-        const safeConfig = {
-          ...existingConfig,
-          sampleSize: existingConfig.sampleSize > 0 ? existingConfig.sampleSize : 25
-        };
-        setConfig(safeConfig);
+        setConfig(existingConfig);
         setPopulationSize(365);
       } else {
-        // Set default configuration
+        const frequencyConfig = calculateFrequencyBasedConfig(excelControlData);
+        
+        const auditStartDate = auditPeriod.startDate.toISOString().split('T')[0];
+        const auditEndDate = auditPeriod.endDate.toISOString().split('T')[0];
+        
+        const quarters = frequencyConfig.requiresSampling ? 
+          SamplingEngine.createTimePeriodsFromFrequency(excelControlData, auditStartDate, auditEndDate) : 
+          [];
+
         const defaultConfig: SamplingConfig = {
           id: `sampling-${controlId}-${Date.now()}`,
           controlId,
-          sampleSize: 25, // Always default to 25
-          methodology: 'random',
+          sampleSize: frequencyConfig.sampleSize,
+          methodology: frequencyConfig.methodology,
           timePeriod: {
             type: 'calendar_quarters',
-            startDate: auditPeriod.startDate.toISOString().split('T')[0],
-            endDate: auditPeriod.endDate.toISOString().split('T')[0],
-            quarters: []
+            startDate: auditStartDate,
+            endDate: auditEndDate,
+            quarters
           },
-          minimumInterval: 1,
+          minimumInterval: frequencyConfig.methodology === 'judgmental' ? 7 : 1,
           seed: Math.floor(Math.random() * 10000),
           createdAt: new Date().toISOString(),
           createdBy: user?.email || 'system',
           status: 'draft',
-          notes: 'Default sampling configuration'
+          notes: frequencyConfig.notes
         };
+        
         setConfig(defaultConfig);
         setPopulationSize(365);
       }
     }
-  }, [isOpen, controlId, samplingConfigs, user?.email, auditPeriod]);
+  }, [isOpen, controlId, samplingConfigs, user?.email, auditPeriod, excelControlData]);
 
-  // Reset to configuration tab when opening
+  // Reset to appropriate tab when opening
   useEffect(() => {
     if (isOpen) {
-      setActiveTab('configuration');
+      // Auto-navigate to generation tab if samples exist
+      if (currentSamples.length > 0) {
+        // Check if samples are approved
+        if (currentConfig?.status === 'approved') {
+          setActiveTab('review'); // Show approved samples
+        } else {
+          setActiveTab('generation'); // Show samples for review
+        }
+      } else {
+        setActiveTab('configuration'); // Show configuration
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, currentSamples.length, currentConfig?.status]);
+
+  // Handle Excel data changes with proper recalculation
+  const handleExcelDataChange = (field: string, value: string) => {
+    const updatedData = { ...excelControlData, [field]: value };
+    setExcelControlData(updatedData);
+    
+    const frequencyConfig = calculateFrequencyBasedConfig(updatedData);
+    
+    setConfig(prev => ({
+      ...prev,
+      sampleSize: frequencyConfig.sampleSize,
+      methodology: frequencyConfig.methodology,
+      notes: frequencyConfig.notes
+    }));
+  };
 
   // Validation function
   const validateConfiguration = () => {
     const errors: string[] = [];
     
-    // Ensure sample size is always at least 1
-    const safeSampleSize = Math.max(1, config.sampleSize || 25);
+    if (!SamplingEngine.shouldSampleControl(excelControlData)) {
+      return [];
+    }
     
-    if (safeSampleSize <= 0) {
+    if (config.sampleSize <= 0) {
       errors.push('Sample size must be greater than 0.');
     }
     
-    if (safeSampleSize > populationSize) {
+    if (config.sampleSize > populationSize) {
       errors.push('Sample size cannot exceed population size.');
     }
     
     return errors;
   };
 
-  // Generate sample dates locally
-  const generateSamplesLocally = (sampleSize: number, populationSize: number, methodology: string): GeneratedSample[] => {
-    const samples: GeneratedSample[] = [];
-    const startDate = auditPeriod.startDate;
-    const endDate = auditPeriod.endDate;
-    const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    let selectedDays: number[] = [];
-    
-    switch (methodology) {
-      case 'random':
-        // Random sampling
-        while (selectedDays.length < sampleSize) {
-          const randomDay = Math.floor(Math.random() * totalDays);
-          if (!selectedDays.includes(randomDay)) {
-            selectedDays.push(randomDay);
-          }
-        }
-        break;
-        
-      case 'systematic':
-        // Systematic sampling
-        const interval = Math.floor(totalDays / sampleSize);
-        const startPoint = Math.floor(Math.random() * interval);
-        for (let i = 0; i < sampleSize; i++) {
-          const day = (startPoint + (i * interval)) % totalDays;
-          selectedDays.push(day);
-        }
-        break;
-        
-      default:
-        // Default to random
-        while (selectedDays.length < sampleSize) {
-          const randomDay = Math.floor(Math.random() * totalDays);
-          if (!selectedDays.includes(randomDay)) {
-            selectedDays.push(randomDay);
-          }
-        }
-    }
-    
-    // Convert days to actual dates
-    selectedDays.sort((a, b) => a - b);
-    
-    selectedDays.forEach((dayOffset, index) => {
-      const sampleDate = new Date(startDate);
-      sampleDate.setDate(startDate.getDate() + dayOffset);
-      
-      samples.push({
-        id: `sample-${config.id}-${index + 1}`,
-        samplingConfigId: config.id,
-        quarterId: undefined,
-        customPeriodId: undefined,
-        sampleDate: sampleDate.toISOString().split('T')[0],
-        sampleIndex: index + 1,
-        quarterName: `Q${Math.floor((sampleDate.getMonth() / 3)) + 1} ${sampleDate.getFullYear()}`,
-        isWeekend: sampleDate.getDay() === 0 || sampleDate.getDay() === 6,
-        isHoliday: false,
-        status: 'pending',
-        notes: `Generated using ${methodology} methodology`
-      });
-    });
-    
-    return samples;
-  };
-
-  // Generate sample dates
+  // Generate samples with enhanced error handling
   const handleGenerateSamplesClick = async () => {
     setIsGenerating(true);
     
     try {
-      // Ensure sample size is at least 1
-      const safeSampleSize = Math.max(1, config.sampleSize || 25);
-      const safeConfig = { ...config, sampleSize: safeSampleSize };
+      const requiresSampling = SamplingEngine.shouldSampleControl(excelControlData);
+      
+      if (!requiresSampling) {
+        alert(`This control does not require sampling based on its frequency: "${excelControlData['Control frequency']}"`);
+        return;
+      }
       
       const errors = validateConfiguration();
       if (errors.length > 0) {
@@ -227,32 +280,42 @@ export default function SamplingModal({
         return;
       }
       
-      // Save configuration first
+      const engineConfig = createSamplingConfigFromControlData(
+        controlId,
+        excelControlData,
+        auditPeriod.startDate.toISOString().split('T')[0],
+        auditPeriod.endDate.toISOString().split('T')[0]
+      );
+      
+      if (!engineConfig) {
+        alert('Unable to create sampling configuration for this control.');
+        return;
+      }
+      
       const configToSave: SamplingConfig = {
-        ...safeConfig,
+        ...engineConfig,
         status: 'generated'
       };
       
       handleSamplingConfigSave(configToSave);
       setConfig(configToSave);
       
-      // Generate samples locally using the safe sample size
-      const samples = generateSamplesLocally(safeSampleSize, populationSize, safeConfig.methodology);
+      const samples = SamplingEngine.generateSamples(configToSave);
       
-      // Use the handleGenerateSamples from useAppState
       handleGenerateSamples(configToSave, samples);
       
+      console.log('✅ Sample generation completed successfully');
       setActiveTab('generation');
       
     } catch (error) {
-      console.error('Error generating samples:', error);
-      alert('Failed to generate samples. Please try again.');
+      console.error('❌ Error generating samples:', error);
+      alert('Failed to generate samples. Please check the console for details and try again.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // UPDATED: Handle approve samples
+  // Handle approve samples
   const handleApproveSamplesClick = () => {
     if (currentConfig) {
       handleApproveSamples(currentConfig.id);
@@ -260,14 +323,13 @@ export default function SamplingModal({
     }
   };
 
-  // FIXED: Handle evidence request creation with proper persistence and delayed close
+  // Handle evidence request creation
   const handleCreateEvidenceRequestClick = () => {
     if (!currentConfig || currentSamples.length === 0) {
       alert('No samples available to create evidence request.');
       return;
     }
 
-    // Create evidence request object - FIXED: Only use properties that exist in EvidenceRequest type
     const evidenceRequest: EvidenceRequest = {
       id: `evidence-req-${controlId}-${Date.now()}`,
       controlId: controlId,
@@ -276,14 +338,14 @@ export default function SamplingModal({
       status: 'sent',
       createdAt: new Date().toISOString(),
       createdBy: user?.email || 'auditor',
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks from now
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
       title: `Evidence Request - ${controlDescription}`,
       samplingDetails: {
         methodology: currentConfig.methodology,
         sampleSize: currentSamples.length,
         selectedDates: currentSamples.map(sample => sample.sampleDate),
         populationDescription: `Audit period: ${auditPeriod.startDate.toISOString().split('T')[0]} to ${auditPeriod.endDate.toISOString().split('T')[0]}`,
-        samplingRationale: `${currentConfig.methodology} sampling methodology selected for ${controlDescription}`
+        samplingRationale: `${currentConfig.methodology} sampling methodology selected based on control frequency: ${excelControlData['Control frequency']} and risk rating: ${excelControlData['PwC risk rating (H/M/L)']}`
       },
       instructions: `For each sample date, please provide:
         1. Supporting documentation showing the control was performed
@@ -293,15 +355,9 @@ export default function SamplingModal({
       priority: currentConfig.methodology === 'judgmental' ? 'high' : 'medium'
     };
 
-    // FIXED: Use the handleCreateEvidenceRequest from useAppState to persist and update status
     handleCreateEvidenceRequest(evidenceRequest);
-    
-    console.log('✅ Evidence request created and status updated to "sent"');
-    
-    // Call the callback
     onCreateEvidenceRequest();
     
-    // ✅ FIXED: Add small delay before closing to allow React state to propagate
     setTimeout(() => {
       onClose();
     }, 100);
@@ -330,6 +386,8 @@ export default function SamplingModal({
   if (!isOpen) return null;
 
   const validationErrors = validateConfiguration();
+  const frequencyInfo = getFrequencyInfo(excelControlData['Control frequency']);
+  const requiresSampling = SamplingEngine.shouldSampleControl(excelControlData);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -377,153 +435,215 @@ export default function SamplingModal({
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'configuration' && (
             <div className="max-w-4xl mx-auto space-y-6">
-              {/* Configuration Form */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column - Sampling Parameters */}
-                <div className="space-y-6">
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Sampling Parameters</h3>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Methodology
-                        </label>
-                        <select
-                          value={config.methodology}
-                          onChange={(e) => setConfig({
-                            ...config,
-                            methodology: e.target.value as 'random' | 'systematic' | 'judgmental'
-                          })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="random">Random Sampling</option>
-                          <option value="systematic">Systematic Sampling</option>
-                          <option value="judgmental">Judgmental Sampling</option>
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {getMethodologyDescription(config.methodology)}
-                        </p>
-                      </div>
+              {/* Excel Control Data Section */}
+              <div className="bg-blue-50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-blue-900 mb-4">
+                  <FileText className="inline w-5 h-5 mr-2" />
+                  Control Information
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-blue-900 mb-2">
+                      Control Frequency (Excel Column F)
+                    </label>
+                    <select
+                      value={excelControlData['Control frequency']}
+                      onChange={(e) => handleExcelDataChange('Control frequency', e.target.value)}
+                      className="w-full px-3 py-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      {FREQUENCY_DISPLAY_INFO.map(freq => (
+                        <option key={freq.frequency} value={freq.frequency}>
+                          {freq.frequency}
+                        </option>
+                      ))}
+                    </select>
+                    {frequencyInfo && (
+                      <p className="text-xs text-blue-700 mt-1">
+                        {frequencyInfo.description} • {frequencyInfo.samplesPerYear} samples/year
+                      </p>
+                    )}
+                  </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Sample Size
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max={populationSize}
-                            value={Math.max(1, config.sampleSize || 25)}
-                            onChange={(e) => setConfig({
-                              ...config,
-                              sampleSize: Math.max(1, parseInt(e.target.value) || 25)
-                            })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                          />
+                  <div>
+                    <label className="block text-sm font-medium text-blue-900 mb-2">
+                      PwC Risk Rating (Excel Column E)
+                    </label>
+                    <select
+                      value={excelControlData['PwC risk rating (H/M/L)']}
+                      onChange={(e) => handleExcelDataChange('PwC risk rating (H/M/L)', e.target.value)}
+                      className="w-full px-3 py-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="H">High (H)</option>
+                      <option value="M">Medium (M)</option>
+                      <option value="L">Low (L)</option>
+                    </select>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Risk determines sampling methodology: H=Judgmental, M=Systematic, L=Random
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sampling Requirements Alert */}
+                {!requiresSampling && (
+                  <div className="mt-4 p-4 bg-green-100 border border-green-300 rounded-md">
+                    <div className="flex items-center">
+                      <Info className="w-5 h-5 text-green-600 mr-2" />
+                      <span className="text-green-800 font-medium">
+                        No Sampling Required
+                      </span>
+                    </div>
+                    <p className="text-green-700 text-sm mt-1">
+                      Controls with frequency "{excelControlData['Control frequency']}" do not require sample-based testing.
+                      These are typically continuous monitoring or event-driven controls.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {requiresSampling && (
+                <>
+                  {/* Configuration Form */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Left Column - Calculated Parameters */}
+                    <div className="space-y-6">
+                      <div className="bg-gray-50 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">
+                          Calculated Sampling Parameters
+                        </h3>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Methodology (Auto-Selected)
+                            </label>
+                            <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700">
+                              {config.methodology.charAt(0).toUpperCase() + config.methodology.slice(1)} Sampling
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {getMethodologyDescription(config.methodology)}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Sample Size (Calculated)
+                              </label>
+                              <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700 font-medium">
+                                {config.sampleSize}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Population Size
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={populationSize}
+                                onChange={(e) => setPopulationSize(Math.max(1, parseInt(e.target.value) || 365))}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Population Size
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={populationSize}
-                            onChange={(e) => {
-                              const newPopSize = Math.max(1, parseInt(e.target.value) || 365);
-                              setPopulationSize(newPopSize);
-                              setConfig({
-                                ...config,
-                                sampleSize: Math.min(config.sampleSize || 25, newPopSize)
-                              });
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                          />
+                      </div>
+                    </div>
+
+                    {/* Right Column - Validation & Info */}
+                    <div className="space-y-6">
+                      {/* Validation Errors */}
+                      {validationErrors.length > 0 && (
+                        <div className="bg-red-50 rounded-lg p-6">
+                          <h3 className="text-lg font-medium text-red-900 mb-4">
+                            <AlertCircle className="inline w-5 h-5 mr-2" />
+                            Configuration Issues
+                          </h3>
+                          <ul className="space-y-2">
+                            {validationErrors.map((error, index) => (
+                              <li key={index} className="text-sm text-red-800 flex items-start">
+                                <span className="w-2 h-2 bg-red-400 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
+                                {error}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Audit Period Info */}
+                      <div className="bg-gray-50 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">
+                          <Calendar className="inline w-5 h-5 mr-2" />
+                          Audit Period
+                        </h3>
+                        <div className="space-y-2 text-sm text-gray-700">
+                          <div className="flex justify-between">
+                            <span>Start Date:</span>
+                            <span className="font-medium">{auditPeriod.startDate.toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>End Date:</span>
+                            <span className="font-medium">{auditPeriod.endDate.toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex justify-between pt-2 border-t border-gray-200">
+                            <span>Total Days:</span>
+                            <span className="font-medium">{populationSize}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Right Column - Validation */}
-                <div className="space-y-6">
-                  {/* Validation Errors */}
-                  {validationErrors.length > 0 && (
-                    <div className="bg-red-50 rounded-lg p-6">
-                      <h3 className="text-lg font-medium text-red-900 mb-4">
-                        <AlertCircle className="inline w-5 h-5 mr-2" />
-                        Configuration Issues
-                      </h3>
-                      <ul className="space-y-2">
-                        {validationErrors.map((error, index) => (
-                          <li key={index} className="text-sm text-red-800 flex items-start">
-                            <span className="w-2 h-2 bg-red-400 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
-                            {error}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Audit Period Info */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">
-                      <Calendar className="inline w-5 h-5 mr-2" />
-                      Audit Period
-                    </h3>
-                    <div className="space-y-2 text-sm text-gray-700">
-                      <div className="flex justify-between">
-                        <span>Start Date:</span>
-                        <span className="font-medium">{auditPeriod.startDate.toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>End Date:</span>
-                        <span className="font-medium">{auditPeriod.endDate.toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex justify-between pt-2 border-t border-gray-200">
-                        <span>Total Days:</span>
-                        <span className="font-medium">{populationSize}</span>
-                      </div>
-                    </div>
+                  {/* Action Buttons */}
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleGenerateSamplesClick}
+                      disabled={validationErrors.length > 0 || isGenerating}
+                      className={`px-6 py-2 text-white rounded-md transition-colors ${
+                        validationErrors.length > 0 || isGenerating
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Shuffle className="inline w-4 h-4 mr-2" />
+                          Generate Samples
+                        </>
+                      )}
+                    </button>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleGenerateSamplesClick}
-                  disabled={validationErrors.length > 0 || isGenerating}
-                  className={`px-6 py-2 text-white rounded-md transition-colors ${
-                    validationErrors.length > 0 || isGenerating
-                      ? 'bg-gray-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Shuffle className="inline w-4 h-4 mr-2" />
-                      Generate Samples
-                    </>
-                  )}
-                </button>
-              </div>
+              {/* No Sampling Required Actions */}
+              {!requiresSampling && (
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={onClose}
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  >
+                    <CheckCircle className="inline w-4 h-4 mr-2" />
+                    Acknowledge - No Sampling Required
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
+          {/* Other tabs - generation, review, evidence */}
           {activeTab === 'generation' && (
             <div className="max-w-6xl mx-auto space-y-6">
               {/* Generation Results Header */}
@@ -534,9 +654,9 @@ export default function SamplingModal({
                     Generated Samples
                   </h3>
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <span>Frequency: <strong>{excelControlData['Control frequency']}</strong></span>
                     <span>Methodology: <strong>{config.methodology}</strong></span>
                     <span>Sample Size: <strong>{currentSamples.length}</strong></span>
-                    <span>Population: <strong>{populationSize}</strong></span>
                   </div>
                 </div>
                 
@@ -570,7 +690,10 @@ export default function SamplingModal({
                   <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                     <h4 className="text-lg font-medium text-gray-900">Sample Dates</h4>
                     <div className="flex space-x-2">
-                      <button className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                      <button 
+                        onClick={() => {/* Export functionality */}}
+                        className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                      >
                         <Download className="inline w-4 h-4 mr-1" />
                         Export CSV
                       </button>
@@ -618,20 +741,21 @@ export default function SamplingModal({
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Action Buttons - Review workflow */}
               {currentSamples.length > 0 && (
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setActiveTab('configuration')}
                     className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                   >
-                    Back to Configuration
+                    Regenerate Samples
                   </button>
                   <button
-                    onClick={() => setActiveTab('review')}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    onClick={handleApproveSamplesClick}
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                   >
-                    Review & Approve
+                    <CheckCircle className="inline w-4 h-4 mr-2" />
+                    Approve Samples
                   </button>
                 </div>
               )}
@@ -644,13 +768,21 @@ export default function SamplingModal({
               <div className="bg-gray-50 rounded-lg p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
                   <CheckCircle className="inline w-5 h-5 mr-2" />
-                  Sampling Review
+                  Sampling Review - Approved
                 </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">Configuration Summary</h4>
                     <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Control Frequency:</span>
+                        <span className="font-medium">{excelControlData['Control frequency']}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Risk Rating:</span>
+                        <span className="font-medium">{excelControlData['PwC risk rating (H/M/L)']}</span>
+                      </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Methodology:</span>
                         <span className="font-medium capitalize">{config.methodology} Sampling</span>
@@ -660,61 +792,30 @@ export default function SamplingModal({
                         <span className="font-medium">{currentSamples.length}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Population Size:</span>
-                        <span className="font-medium">{populationSize}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Confidence Level:</span>
-                        <span className="font-medium">95%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Tolerable Error:</span>
-                        <span className="font-medium">5%</span>
+                        <span className="text-gray-600">Status:</span>
+                        <span className="font-medium text-green-600">✅ Approved</span>
                       </div>
                     </div>
                   </div>
                   
                   <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Statistical Analysis</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Coverage Percentage:</span>
-                        <span className="font-medium">
-                          {((currentSamples.length / populationSize) * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Sample Adequacy:</span>
-                        <span className="font-medium text-green-600">Adequate</span>
-                      </div>
+                    <h4 className="font-medium text-gray-900 mb-3">Next Steps</h4>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>✅ Samples have been approved by the auditor</p>
+                      <p>📋 Ready to create evidence requests</p>
+                      <p>📧 Evidence requests will be sent to the client</p>
+                      <p>📁 Client can then upload required evidence</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Sample Preview */}
+              {/* Evidence Request Creation */}
               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <h4 className="text-lg font-medium text-gray-900 mb-4">Sample Dates Preview</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto">
-                  {currentSamples.slice(0, 20).map((sample, index) => (
-                    <div key={sample.id} className="p-2 bg-gray-50 rounded text-center text-sm">
-                      {formatDate(sample.sampleDate)}
-                    </div>
-                  ))}
-                  {currentSamples.length > 20 && (
-                    <div className="p-2 bg-gray-100 rounded text-center text-sm text-gray-500">
-                      +{currentSamples.length - 20} more...
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Approval Actions */}
-              <div className="bg-gray-50 rounded-lg p-6">
-                <h4 className="text-lg font-medium text-gray-900 mb-4">Approval & Next Steps</h4>
+                <h4 className="text-lg font-medium text-gray-900 mb-4">Create Evidence Request</h4>
                 <p className="text-gray-600 mb-4">
-                  Review the sampling configuration and generated dates above. Once approved, 
-                  you can create evidence requests for the selected sample dates.
+                  Create formal evidence requests for the approved sample dates. 
+                  These will be sent to the client for evidence collection.
                 </p>
                 
                 <div className="flex justify-end space-x-3">
@@ -725,11 +826,11 @@ export default function SamplingModal({
                     Back to Samples
                   </button>
                   <button
-                    onClick={handleApproveSamplesClick}
-                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    onClick={handleCreateEvidenceRequestClick}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                   >
-                    <CheckCircle className="inline w-4 h-4 mr-2" />
-                    Approve Samples
+                    <Send className="inline w-4 h-4 mr-2" />
+                    Send Evidence Request to Client
                   </button>
                 </div>
               </div>
@@ -738,68 +839,18 @@ export default function SamplingModal({
 
           {activeTab === 'evidence' && (
             <div className="max-w-4xl mx-auto space-y-6">
-              {/* Evidence Request Creation */}
-              <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  <Send className="inline w-5 h-5 mr-2" />
-                  Create Evidence Request
-                </h3>
-                
-                <p className="text-gray-600 mb-6">
-                  Generate formal evidence requests for the approved sample dates. 
-                  These requests will be sent to the appropriate personnel for evidence collection.
+              <div className="text-center py-12">
+                <Send className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Evidence Request Sent!</h3>
+                <p className="text-gray-600 mb-4">
+                  The evidence request has been sent to the client. They can now upload the required evidence for the sample dates.
                 </p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-medium text-gray-900 mb-3">Request Details</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Control ID:</span>
-                        <span className="font-medium">{controlId}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Sample Dates:</span>
-                        <span className="font-medium">{currentSamples.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Request Type:</span>
-                        <span className="font-medium">Sample-based Evidence</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Priority:</span>
-                        <span className="font-medium">Medium</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-medium text-gray-900 mb-3">Evidence Requirements</h4>
-                    <ul className="space-y-1 text-sm text-gray-600">
-                      <li>• Documentation for each selected date</li>
-                      <li>• Supporting transaction records</li>
-                      <li>• Approval evidence where applicable</li>
-                      <li>• System-generated reports</li>
-                      <li>• Management review documentation</li>
-                    </ul>
-                  </div>
-                </div>
-                
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    onClick={() => setActiveTab('review')}
-                    className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Back to Review
-                  </button>
-                  <button
-                    onClick={handleCreateEvidenceRequestClick}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    <Send className="inline w-4 h-4 mr-2" />
-                    Create Evidence Request
-                  </button>
-                </div>
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Close
+                </button>
               </div>
             </div>
           )}
@@ -808,9 +859,11 @@ export default function SamplingModal({
         {/* Footer */}
         <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between">
           <div className="text-sm text-gray-500">
-            {currentSamples.length > 0 
-              ? `${currentSamples.length} samples generated • ${config.methodology} methodology`
-              : 'Configure sampling parameters to generate samples'
+            {!requiresSampling 
+              ? `Control frequency: ${excelControlData['Control frequency']} • No sampling required`
+              : currentSamples.length > 0 
+                ? `${currentSamples.length} samples generated • ${config.methodology} methodology • Frequency: ${excelControlData['Control frequency']}`
+                : `Control frequency: ${excelControlData['Control frequency']} • Risk: ${excelControlData['PwC risk rating (H/M/L)']} • Configure sampling parameters`
             }
           </div>
           <button

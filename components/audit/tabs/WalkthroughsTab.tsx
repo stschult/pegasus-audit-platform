@@ -1,0 +1,314 @@
+// File: components/audit/tabs/WalkthroughsTab.tsx - Fixed Types
+'use client';
+
+import React from 'react';
+import { 
+  Download, 
+  Send, 
+  AlertTriangle, 
+  Eye, 
+  Calendar, 
+  Users, 
+  CheckCircle, 
+  Clock,
+  Check
+} from 'lucide-react';
+
+// Import types from your main types file
+import { WalkthroughApplication, WalkthroughRequest, User } from '../../../types';
+
+interface Application {
+  id: string;
+  name: string;
+  description: string;
+  riskLevel: string;
+  owner: string;
+  category: string;
+}
+
+interface WalkthroughsTabProps {
+  walkthroughApplications: WalkthroughApplication[];
+  walkthroughRequests: WalkthroughRequest[];
+  user: User | null;
+  onBulkSendRequests: () => void;
+  onIndividualSendRequest: (requestId: string, applicationName: string) => void;
+  onOpenScheduling: (application: Application) => void;
+  onWalkthroughClick: (application: Application) => void;
+  onOpenCompletion?: (application: Application, request: WalkthroughRequest) => void;
+}
+
+const WalkthroughsTab: React.FC<WalkthroughsTabProps> = ({
+  walkthroughApplications,
+  walkthroughRequests,
+  user,
+  onBulkSendRequests,
+  onIndividualSendRequest,
+  onOpenScheduling,
+  onWalkthroughClick,
+  onOpenCompletion
+}) => {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Walkthroughs ({walkthroughApplications?.length || 0})
+        </h2>
+        <div className="flex items-center gap-3">
+          {/* Bulk Send Button for auditors */}
+          {user?.userType === 'auditor' && walkthroughApplications && walkthroughApplications.length > 0 && (
+            <button 
+              onClick={onBulkSendRequests}
+              className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Send All Requests
+            </button>
+          )}
+          <button className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors">
+            <Download className="h-4 w-4 mr-2" />
+            Export Walkthroughs
+          </button>
+        </div>
+      </div>
+
+      {/* Timeline Alert for auditors */}
+      {user?.userType === 'auditor' && walkthroughApplications && walkthroughApplications.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-medium text-red-900 mb-1">Walkthrough Timeline Alert</h3>
+              <p className="text-sm text-red-700 mb-2">
+                {walkthroughApplications.length} walkthroughs need to be scheduled and completed within the first week of the audit period.
+              </p>
+              <p className="text-xs text-red-600">
+                Send requests to client now to allow time for coordination with business owners.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Walkthrough Cards */}
+      {walkthroughApplications && walkthroughApplications.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {walkthroughApplications.map((walkthrough, index) => {
+            const applicationName = walkthrough.name;
+            const businessOwner = walkthrough.owner;
+            
+            // Get the status from walkthroughRequests if available
+            const relatedRequest = walkthroughRequests?.find(req => 
+              req.applicationName === applicationName && 
+              req.businessOwner === businessOwner
+            );
+            
+            const status = relatedRequest?.status || 'draft';
+            const needsAction = user?.userType === 'auditor' && status === 'draft';
+            const borderClass = needsAction ? 'border-red-400 border-2' : 'border-gray-200';
+            
+            return (
+              <div
+                key={`${applicationName}-${businessOwner}-${index}`}
+                className={`bg-white border rounded-lg p-6 hover:shadow-lg transition-all group overflow-hidden ${borderClass}`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors flex-shrink-0">
+                      <Eye className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-orange-700 transition-colors truncate">
+                        {applicationName}
+                      </h3>
+                      <p className="text-sm text-gray-500 truncate">{businessOwner}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
+                    <span className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap bg-orange-100 text-orange-600">
+                      {walkthrough.riskLevel.toUpperCase()}
+                    </span>
+                    {/* Status badges with role-based display */}
+                    {user?.userType === 'auditor' && status === 'draft' && (
+                      <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-red-100 text-red-700">
+                        <AlertTriangle size={12} />
+                        <span className="truncate max-w-24">Send Request</span>
+                      </div>
+                    )}
+                    {status === 'sent' && (
+                      <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-700">
+                        <Clock size={12} />
+                        <span className="truncate max-w-24">
+                          {user?.userType === 'client' ? 'Schedule Required' : 'Awaiting Response'}
+                        </span>
+                      </div>
+                    )}
+                    {status === 'scheduled' && (
+                      <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-green-100 text-green-700">
+                        <CheckCircle size={12} />
+                        <span className="truncate max-w-24">Scheduled</span>
+                      </div>
+                    )}
+                    {status === 'completed' && (
+                      <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-700">
+                        <CheckCircle size={12} />
+                        <span className="truncate max-w-24">Completed</span>
+                      </div>
+                    )}
+                    {status === 'cancelled' && (
+                      <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-red-100 text-red-700">
+                        <AlertTriangle size={12} />
+                        <span className="truncate max-w-24">Cancelled</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                  {walkthrough.description}
+                </p>
+                
+                <div className="flex items-center justify-between text-sm mb-4">
+                  <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
+                    <Users className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{businessOwner}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons Section */}
+                <div className="border-t border-gray-100 pt-4 space-y-2">
+                  {/* AUDITOR ACTIONS */}
+                  {user?.userType === 'auditor' && (
+                    <>
+                      {status === 'draft' && relatedRequest && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onIndividualSendRequest(relatedRequest.id, applicationName);
+                          }}
+                          className="w-full inline-flex items-center justify-center px-3 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 transition-colors"
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          Send Request
+                        </button>
+                      )}
+                      
+                      {status === 'scheduled' && relatedRequest && onOpenCompletion && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenCompletion({
+                              id: walkthrough.id,
+                              name: applicationName,
+                              description: walkthrough.description,
+                              riskLevel: walkthrough.riskLevel,
+                              owner: businessOwner,
+                              category: walkthrough.category
+                            }, relatedRequest);
+                          }}
+                          className="w-full inline-flex items-center justify-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
+                        >
+                          <Check className="h-4 w-4 mr-2" />
+                          Mark as Completed
+                        </button>
+                      )}
+                      
+                      {status === 'sent' && (
+                        <div className="text-center text-sm text-gray-500 py-2">
+                          Waiting for client to schedule
+                        </div>
+                      )}
+                      
+                      {status === 'completed' && (
+                        <div className="text-center text-sm text-blue-600 py-2 font-medium">
+                          ✅ Walkthrough Completed
+                        </div>
+                      )}
+                      
+                      {status === 'cancelled' && (
+                        <div className="text-center text-sm text-red-600 py-2 font-medium">
+                          ❌ Walkthrough Cancelled
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* CLIENT ACTIONS */}
+                  {user?.userType === 'client' && (
+                    <>
+                      {status === 'sent' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenScheduling({
+                              id: walkthrough.id,
+                              name: applicationName,
+                              description: walkthrough.description,
+                              riskLevel: walkthrough.riskLevel,
+                              owner: businessOwner,
+                              category: walkthrough.category
+                            });
+                          }}
+                          className="w-full inline-flex items-center justify-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Schedule Walkthrough
+                        </button>
+                      )}
+                      {status === 'scheduled' && (
+                        <div className="text-center text-sm text-green-600 py-2 font-medium">
+                          ✅ Walkthrough Scheduled
+                        </div>
+                      )}
+                      {status === 'completed' && (
+                        <div className="text-center text-sm text-blue-600 py-2 font-medium">
+                          ✅ Walkthrough Completed
+                        </div>
+                      )}
+                      {status === 'cancelled' && (
+                        <div className="text-center text-sm text-red-600 py-2 font-medium">
+                          ❌ Walkthrough Cancelled
+                        </div>
+                      )}
+                      {status === 'draft' && (
+                        <div className="text-center text-sm text-gray-500 py-2">
+                          Waiting for auditor to send request
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* VIEW DETAILS BUTTON (ALWAYS AVAILABLE) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onWalkthroughClick({
+                        id: walkthrough.id,
+                        name: applicationName,
+                        description: walkthrough.description,
+                        riskLevel: walkthrough.riskLevel,
+                        owner: businessOwner,
+                        category: walkthrough.category
+                      });
+                    }}
+                    className="w-full inline-flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 transition-colors"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Walkthrough Applications Found</h3>
+          <p className="text-gray-600">Upload an Excel file with Key Reports to extract walkthrough applications</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default WalkthroughsTab;

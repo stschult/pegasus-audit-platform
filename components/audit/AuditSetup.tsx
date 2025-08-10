@@ -1,41 +1,20 @@
-// components/audit/AuditSetup.tsx - FIXED WITH TEXT OVERFLOW PROTECTION
+// File: src/components/audit/AuditSetup.tsx - Dramatically Simplified!
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { 
-  ArrowLeft, 
-  Upload, 
-  FileText, 
-  CheckCircle, 
-  Settings, 
-  Building2, 
-  AlertTriangle, 
-  Home, 
-  X, 
-  Download, 
-  Eye, 
-  User, 
-  Calendar, 
-  Shield, 
-  Database, 
-  Lock, 
-  Monitor, 
-  FileCheck, 
-  AlertCircle, 
-  Clock, 
-  Target, 
-  Activity, 
-  Zap, 
-  BookOpen, 
-  Users, 
-  CheckSquare, 
-  XCircle,
-  Send
-} from 'lucide-react';
-import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile } from '../../types';
+import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile } from '../../src/components/audit/types';
 import { useAppState } from '../../hooks/useAppState';
+
+// Import extracted components
+import AuditHeader from '../../src/components/audit/sections/AuditHeader';
+import AuditNavigation from '../../src/components/audit/sections/AuditNavigation';
+import AuditDetails from '../../src/components/audit/sections/AuditDetails';
+import TabContentRenderer from '../../src/components/audit/sections/TabContentRenderer';
+
+// Import modals
+import ClientSchedulingModal from './modals/ClientSchedulingModal';
+import WalkthroughCompletionModal from './modals/WalkthroughCompletionModal';
 import ControlDetailModal from './ControlDetailModal';
-import WalkthroughTab from './WalkthroughTab';
 import WalkthroughDetailModal from './WalkthroughDetailModal';
 
 interface AuditSetupProps {
@@ -61,119 +40,6 @@ interface AuditSetupProps {
   onFileUpload: (files: FileList) => void;
 }
 
-// Add type for walkthrough applications
-interface Application {
-  id: string;
-  name: string;
-  description: string;
-  riskLevel: string;
-  owner: string;
-  category: string;
-}
-
-const AUDIT_MODULES = [
-  { id: 'overview', name: 'Overview', icon: Home },
-  { id: 'itgcs', name: 'ITGCs', icon: CheckCircle },
-  { id: 'key-reports', name: 'Key Reports', icon: FileText },
-  { id: 'itacs', name: 'ITACs', icon: Settings },
-  { id: 'walkthroughs', name: 'Walkthroughs', icon: Eye },
-  { id: 'key-systems', name: 'Key Systems', icon: Building2 },
-  { id: 'findings-log', name: 'Findings Log', icon: AlertTriangle }
-];
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
-
-const getShortDescriptionForParsing = (fullDescription: string): string => {
-  if (!fullDescription || typeof fullDescription !== 'string') {
-    return 'Unknown Control';
-  }
-
-  const description = fullDescription.toLowerCase().trim();
-  
-  // Comprehensive mapping with multiple keywords
-  const keywordMappings = [
-    {
-      keywords: ['backup', 'restore', 'recovery', 'disaster recovery', 'data backup'],
-      result: 'System Backups'
-    },
-    {
-      keywords: ['access', 'user access', 'authorization', 'authentication', 'login', 'password', 'account'],
-      result: 'Access Review'
-    },
-    {
-      keywords: ['physical', 'facility', 'security', 'badge', 'premises', 'building'],
-      result: 'Physical Security'
-    },
-    {
-      keywords: ['change management', 'change control', 'system changes', 'configuration'],
-      result: 'Change Management'
-    },
-    {
-      keywords: ['segregation', 'separation', 'duties', 'roles', 'responsibilities'],
-      result: 'Segregation of Duties'
-    },
-    {
-      keywords: ['monitoring', 'logging', 'audit trail', 'system monitoring', 'log review'],
-      result: 'System Monitoring'
-    },
-    {
-      keywords: ['network', 'firewall', 'intrusion', 'network security', 'perimeter'],
-      result: 'Network Security'
-    },
-    {
-      keywords: ['patch', 'update', 'vulnerability', 'security patch', 'system update'],
-      result: 'Patch Management'
-    },
-    {
-      keywords: ['incident', 'response', 'incident management', 'security incident'],
-      result: 'Incident Response'
-    },
-    {
-      keywords: ['data retention', 'data disposal', 'data destruction', 'retention policy'],
-      result: 'Data Retention'
-    },
-    {
-      keywords: ['encryption', 'cryptography', 'data encryption', 'secure transmission'],
-      result: 'Data Encryption'
-    },
-    {
-      keywords: ['business continuity', 'continuity planning', 'disaster planning'],
-      result: 'Business Continuity'
-    },
-    {
-      keywords: ['antivirus', 'malware', 'virus protection', 'endpoint protection'],
-      result: 'Malware Protection'
-    },
-    {
-      keywords: ['capacity', 'performance', 'system capacity', 'resource management'],
-      result: 'Capacity Management'
-    },
-    {
-      keywords: ['job scheduling', 'batch processing', 'automated jobs', 'job control'],
-      result: 'Job Scheduling'
-    }
-  ];
-
-  // Find the best match
-  for (const mapping of keywordMappings) {
-    for (const keyword of mapping.keywords) {
-      if (description.includes(keyword)) {
-        return mapping.result;
-      }
-    }
-  }
-
-  // Fallback: use first few words if no match found
-  const words = fullDescription.split(' ').slice(0, 3).join(' ');
-  return words || 'System Control';
-};
-
 const AuditSetup: React.FC<AuditSetupProps> = ({
   selectedAudit,
   onBack,
@@ -183,36 +49,204 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
   extractedData,
   onFileUpload
 }) => {
-  // ✅ FIXED: Get current React state AND refresh function for real-time status updates
+  // Get current React state and handler functions
   const {
-    // GET CURRENT STATE FOR REAL-TIME UPDATES
     evidenceRequests,
     evidenceSubmissions,
     samplingConfigs,
     generatedSamples,
-    // Sampling functionality
+    user,
+    walkthroughApplications,
+    walkthroughRequests,
     handleSamplingConfigSave,
     handleApproveSamples,
     handleCreateEvidenceRequest,
     getSamplingDataForControl,
     getSamplingStatusForControl,
-    // ✅ ADD STATE REFRESH FUNCTION
+    handleSendWalkthroughRequests,
+    handleUpdateWalkthroughRequest,
+    handleScheduleWalkthrough,
+    handleCompleteWalkthrough,
     refreshState
   } = useAppState();
 
+  // Component state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedControl, setSelectedControl] = useState<ExtractedControl | null>(null);
   const [selectedITAC, setSelectedITAC] = useState<ExtractedITAC | null>(null);
   const [selectedKeyReport, setSelectedKeyReport] = useState<ExtractedKeyReport | null>(null);
-  const [selectedWalkthrough, setSelectedWalkthrough] = useState<Application | null>(null);
+  const [selectedWalkthrough, setSelectedWalkthrough] = useState<any | null>(null);
   const [isControlModalOpen, setIsControlModalOpen] = useState(false);
   const [isITACModalOpen, setIsITACModalOpen] = useState(false);
   const [isKeyReportModalOpen, setIsKeyReportModalOpen] = useState(false);
   const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
+  
+  // Client scheduling modal state
+  const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
+  const [schedulingApplication, setSchedulingApplication] = useState<any | null>(null);
+  const [schedulingRequestId, setSchedulingRequestId] = useState<string | null>(null);
+  
+  // Completion modal state
+  const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
+  const [completionApplication, setCompletionApplication] = useState<any | null>(null);
+  const [completionRequest, setCompletionRequest] = useState<any>(null);
 
-  const currentData = extractedData;
+  // Utility functions
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
+  const getShortDescriptionForParsing = (fullDescription: string): string => {
+    if (!fullDescription || typeof fullDescription !== 'string') {
+      return 'Unknown Control';
+    }
+
+    const description = fullDescription.toLowerCase().trim();
+    
+    const keywordMappings = [
+      {
+        keywords: ['backup', 'restore', 'recovery', 'disaster recovery', 'data backup'],
+        result: 'System Backups'
+      },
+      {
+        keywords: ['access', 'user access', 'authorization', 'authentication', 'login', 'password', 'account'],
+        result: 'Access Review'
+      },
+      {
+        keywords: ['physical', 'facility', 'security', 'badge', 'premises', 'building'],
+        result: 'Physical Security'
+      },
+      {
+        keywords: ['change management', 'change control', 'system changes', 'configuration'],
+        result: 'Change Management'
+      },
+      {
+        keywords: ['segregation', 'separation', 'duties', 'roles', 'responsibilities'],
+        result: 'Segregation of Duties'
+      },
+      {
+        keywords: ['monitoring', 'logging', 'audit trail', 'system monitoring', 'log review'],
+        result: 'System Monitoring'
+      }
+    ];
+
+    for (const mapping of keywordMappings) {
+      for (const keyword of mapping.keywords) {
+        if (description.includes(keyword)) {
+          return mapping.result;
+        }
+      }
+    }
+
+    const words = fullDescription.split(' ').slice(0, 3).join(' ');
+    return words || 'System Control';
+  };
+
+  const getClientFriendlyStatus = (technicalStatus: string): string => {
+    const statusMap: { [key: string]: string } = {
+      'No Sampling Required': 'Complete ✓',
+      'Needs Sampling': 'Being Configured',
+      'Sampling Configured': 'Being Prepared',
+      'Samples Generated': 'Being Prepared', 
+      'Ready for Evidence Request': 'Being Prepared',
+      'Evidence Request Sent': 'Action Required - Upload Evidence',
+      'Partial Evidence Submitted': 'Partially Complete - More Evidence Needed',
+      'All Evidence Submitted': 'Under Auditor Review',
+      'Evidence Followup Required': 'Action Required - Follow Up Needed',
+      'Evidence Approved': 'Complete ✓'
+    };
+
+    return statusMap[technicalStatus] || technicalStatus;
+  };
+
+  const getSamplingStatusInfo = (controlId: string) => {
+    const technicalStatus = getSamplingStatusForControl(controlId, evidenceRequests, evidenceSubmissions);
+    const userType = user?.userType || 'auditor';
+    
+    const displayStatus = userType === 'client' ? getClientFriendlyStatus(technicalStatus) : technicalStatus;
+    
+    const statusColors: { [key: string]: string } = {
+      'No Sampling Required': 'bg-gray-100 text-gray-600',
+      'Needs Sampling': 'bg-yellow-100 text-yellow-700',
+      'Sampling Configured': 'bg-yellow-100 text-yellow-700',
+      'Samples Generated': 'bg-blue-100 text-blue-700',
+      'Ready for Evidence Request': 'bg-blue-100 text-blue-700',
+      'Evidence Request Sent': 'bg-purple-100 text-purple-700',
+      'Partial Evidence Submitted': 'bg-orange-100 text-orange-700',
+      'All Evidence Submitted': 'bg-green-100 text-green-700',
+      'Evidence Followup Required': 'bg-red-100 text-red-700',
+      'Evidence Approved': 'bg-green-100 text-green-700',
+      'Complete ✓': 'bg-green-100 text-green-700',
+      'Being Configured': 'bg-blue-100 text-blue-700',
+      'Being Prepared': 'bg-blue-100 text-blue-700',
+      'Action Required - Upload Evidence': 'bg-red-100 text-red-700',
+      'Partially Complete - More Evidence Needed': 'bg-orange-100 text-orange-700',
+      'Under Auditor Review': 'bg-blue-100 text-blue-700',
+      'Action Required - Follow Up Needed': 'bg-red-100 text-red-700'
+    };
+    
+    const colorClass = statusColors[displayStatus] || 'bg-gray-100 text-gray-600';
+    
+    let borderClass = 'border-gray-200';
+    let needsAction = false;
+    
+    if (userType === 'auditor') {
+      const auditorActionRequired = [
+        'Needs Sampling', 
+        'Sampling Configured', 
+        'Ready for Evidence Request',
+        'All Evidence Submitted',
+        'Partial Evidence Submitted'
+      ];
+      needsAction = auditorActionRequired.includes(technicalStatus);
+      borderClass = needsAction ? 'border-red-400 border-2' : 'border-gray-200';
+    } else {
+      const clientActionRequired = [
+        'Action Required - Upload Evidence',
+        'Action Required - Follow Up Needed',
+        'Partially Complete - More Evidence Needed'
+      ];
+      needsAction = clientActionRequired.includes(displayStatus);
+      borderClass = needsAction ? 'border-red-400 border-2' : 'border-gray-200';
+    }
+    
+    return {
+      status: displayStatus,
+      technicalStatus,
+      needsAction,
+      colorClass,
+      borderClass
+    };
+  };
+
+  const getControlIcon = (description: string) => {
+    if (!description) return require('lucide-react').Shield;
+    
+    const desc = description.toLowerCase();
+    if (desc.includes('access') || desc.includes('user') || desc.includes('authentication')) return require('lucide-react').User;
+    if (desc.includes('backup') || desc.includes('recovery')) return require('lucide-react').Database;
+    if (desc.includes('security') || desc.includes('firewall')) return require('lucide-react').Lock;
+    if (desc.includes('monitoring') || desc.includes('logging')) return require('lucide-react').Monitor;
+    if (desc.includes('change') || desc.includes('configuration')) return require('lucide-react').Settings;
+    if (desc.includes('physical')) return require('lucide-react').Building2;
+    return require('lucide-react').Shield;
+  };
+
+  const getRiskLevelColor = (riskLevel: string) => {
+    switch (riskLevel?.toLowerCase()) {
+      case 'high': return 'text-red-600 bg-red-100';
+      case 'medium': return 'text-yellow-600 bg-yellow-100';
+      case 'low': return 'text-green-600 bg-green-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  // Event handlers
   const handleFileUpload = (files: FileList) => {
     onFileUpload(files);
   };
@@ -223,6 +257,16 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     if (e.dataTransfer.files) {
       handleFileUpload(e.dataTransfer.files);
     }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
   };
 
   const handleControlClick = (control: ExtractedControl) => {
@@ -240,7 +284,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     setIsKeyReportModalOpen(true);
   };
 
-  const handleWalkthroughClick = (application: Application) => {
+  const handleWalkthroughClick = (application: any) => {
     setSelectedWalkthrough(application);
     setIsWalkthroughModalOpen(true);
   };
@@ -251,124 +295,123 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
 
   const handleUpdateControl = (controlId: string, updates: any) => {
     console.log('Updating control:', controlId, updates);
-    // Your existing control update logic here
   };
 
   const handleEvidenceUpload = (controlId: string, files: File[]) => {
     console.log('Uploading evidence for control:', controlId, files);
-    // Your existing evidence upload logic here
   };
 
-  // ✅ FIXED: Modal close handlers with state refresh
-  const handleControlModalClose = () => {
-    console.log('🔄 Refreshing state before closing control modal');
-    refreshState(); // Force fresh state fetch
-    setIsControlModalOpen(false);
-    setSelectedControl(null);
-  };
-
-  const handleITACModalClose = () => {
-    console.log('🔄 Refreshing state before closing ITAC modal');
-    refreshState(); // Force fresh state fetch
-    setIsITACModalOpen(false);
-    setSelectedITAC(null);
-  };
-
-  const handleKeyReportModalClose = () => {
-    console.log('🔄 Refreshing state before closing key report modal');
-    refreshState(); // Force fresh state fetch
-    setIsKeyReportModalOpen(false);
-    setSelectedKeyReport(null);
-  };
-
-  const getControlIcon = (description: string) => {
-    if (!description) return Shield;
+  // Walkthrough handlers
+  const handleBulkSendWalkthroughRequests = () => {
+    const draftRequests = walkthroughRequests.filter(req => 
+      req.auditId === selectedAudit?.id && 
+      req.status === 'draft'
+    );
     
-    const desc = description.toLowerCase();
-    if (desc.includes('access') || desc.includes('user') || desc.includes('authentication')) return User;
-    if (desc.includes('backup') || desc.includes('recovery')) return Database;
-    if (desc.includes('security') || desc.includes('firewall')) return Lock;
-    if (desc.includes('monitoring') || desc.includes('logging')) return Monitor;
-    if (desc.includes('change') || desc.includes('configuration')) return Settings;
-    if (desc.includes('physical')) return Building2;
-    return Shield;
-  };
-
-  const getRiskLevelColor = (riskLevel: string) => {
-    switch (riskLevel?.toLowerCase()) {
-      case 'high': return 'text-red-600 bg-red-100';
-      case 'medium': return 'text-yellow-600 bg-yellow-100';
-      case 'low': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
+    if (draftRequests.length === 0) {
+      alert('No draft walkthrough requests to send.');
+      return;
+    }
+    
+    const requestIds = draftRequests.map(req => req.id);
+    
+    const confirmed = confirm(
+      `Send ${draftRequests.length} walkthrough requests to the client?`
+    );
+    
+    if (confirmed) {
+      handleSendWalkthroughRequests(requestIds);
+      alert(`✅ Successfully sent ${draftRequests.length} walkthrough requests!`);
+      setTimeout(() => refreshState(), 100);
     }
   };
 
-  // ✅ FIXED: Get sampling status using current React state for real-time updates
-  const getSamplingStatusInfo = (controlId: string) => {
-    // PASS CURRENT REACT STATE TO AVOID LOCALSTORAGE FALLBACK
-    const status = getSamplingStatusForControl(controlId, evidenceRequests, evidenceSubmissions);
+  const handleIndividualSendRequest = (requestId: string, applicationName: string) => {
+    const confirmed = confirm(
+      `Send walkthrough request for "${applicationName}" to the client?`
+    );
     
-    // ✅ ALL CARDS START WITH RED BORDERS - AUDITOR ACTION REQUIRED BY DEFAULT
-    // Only turn green when evidence is fully approved
-    const evidenceFullyApproved = status === 'Evidence Approved';
-    
-    // Status color mapping
-    const statusColors = {
-      'No Sampling Required': 'bg-gray-100 text-gray-600',
-      'Sampling Configured': 'bg-yellow-100 text-yellow-700',
-      'Samples Generated': 'bg-blue-100 text-blue-700',
-      'Evidence Request Sent': 'bg-purple-100 text-purple-700',
-      'Partial Evidence Submitted': 'bg-orange-100 text-orange-700',
-      'All Evidence Submitted': 'bg-green-100 text-green-700',
-      'Evidence Followup Required': 'bg-red-100 text-red-700',
-      'Evidence Approved': 'bg-green-100 text-green-700'
-    };
-    
-    const statusIcons = {
-      'No Sampling Required': null,
-      'Sampling Configured': Clock,
-      'Samples Generated': Eye,
-      'Evidence Request Sent': Send,
-      'Partial Evidence Submitted': AlertCircle,
-      'All Evidence Submitted': CheckCircle,
-      'Evidence Followup Required': AlertTriangle,
-      'Evidence Approved': CheckCircle
-    };
-
-    const colorClass = statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-600';
-    const IconComponent = statusIcons[status as keyof typeof statusIcons];
-    
-    return {
-      status,
-      needsAction: !evidenceFullyApproved, // Always true except when evidence approved
-      colorClass,
-      icon: IconComponent,
-      // ✅ RED BORDER BY DEFAULT - Only green when evidence fully approved
-      borderClass: evidenceFullyApproved ? 'border-green-400 border-2' : 'border-red-400 border-2'
-    };
+    if (confirmed) {
+      handleUpdateWalkthroughRequest(requestId, { 
+        status: 'sent',
+        sentAt: new Date().toISOString()
+      });
+      
+      alert(`✅ Successfully sent walkthrough request for "${applicationName}"!`);
+      setTimeout(() => refreshState(), 100);
+    }
   };
 
-  const getModuleIcon = (moduleId: string) => {
-    const iconMap: { [key: string]: React.ComponentType<any> } = {
-      'overview': Home,
-      'itgcs': CheckCircle,
-      'key-reports': FileText,
-      'itacs': Settings,
-      'walkthroughs': Eye,
-      'key-systems': Building2,
-      'findings-log': AlertTriangle
-    };
-    return iconMap[moduleId] || CheckCircle;
+  const handleOpenScheduling = (application: any) => {
+    const relatedRequest = walkthroughRequests?.find(req => 
+      req.applicationName === application.name && 
+      req.businessOwner === application.owner &&
+      req.status === 'sent'
+    );
+    
+    if (relatedRequest) {
+      setSchedulingApplication(application);
+      setSchedulingRequestId(relatedRequest.id);
+      setIsSchedulingModalOpen(true);
+    } else {
+      alert('No active walkthrough request found for this application.');
+    }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
+  const handleScheduleSubmission = (schedulingData: any) => {
+    if (schedulingRequestId) {
+      handleScheduleWalkthrough(schedulingRequestId, schedulingData);
+      
+      alert(`✅ Walkthrough for "${schedulingApplication?.name}" has been scheduled!`);
+      
+      setIsSchedulingModalOpen(false);
+      setSchedulingApplication(null);
+      setSchedulingRequestId(null);
+      
+      setTimeout(() => refreshState(), 100);
+    }
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+  const handleOpenCompletion = (application: any, request: any) => {
+    setCompletionApplication(application);
+    setCompletionRequest(request);
+    setIsCompletionModalOpen(true);
+  };
+
+  const handleCompletionSubmission = (completionData: any) => {
+    if (completionRequest) {
+      handleCompleteWalkthrough(completionRequest.id, completionData);
+      
+      alert(`✅ Walkthrough for "${completionApplication?.name}" has been completed!`);
+      
+      setIsCompletionModalOpen(false);
+      setCompletionApplication(null);
+      setCompletionRequest(null);
+      
+      setTimeout(() => refreshState(), 100);
+    }
+  };
+
+  // Enhanced modal close handlers with state refresh
+  const handleControlModalClose = () => {
+    refreshState();
+    setIsControlModalOpen(false);
+    setSelectedControl(null);
+    setTimeout(() => refreshState(), 100);
+  };
+
+  const handleITACModalClose = () => {
+    refreshState();
+    setIsITACModalOpen(false);
+    setSelectedITAC(null);
+    setTimeout(() => refreshState(), 100);
+  };
+
+  const handleKeyReportModalClose = () => {
+    refreshState();
+    setIsKeyReportModalOpen(false);
+    setSelectedKeyReport(null);
+    setTimeout(() => refreshState(), 100);
   };
 
   // Get audit period for sampling configuration
@@ -378,549 +421,96 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-6">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={onBack}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{selectedAudit.companyName}</h1>
-                <p className="text-sm text-gray-600">
-                  {selectedAudit.auditType} • {selectedAudit.clientId} • {new Date(selectedAudit.startDate).getFullYear()}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {new Date(selectedAudit.startDate).toLocaleDateString()} - {new Date(selectedAudit.endDate).toLocaleDateString()}
-                </p>
-                <p className="text-sm text-gray-600">Audit Period</p>
-              </div>
-              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                selectedAudit.status === 'active' ? 'bg-green-100 text-green-800' :
-                selectedAudit.status === 'planning' ? 'bg-blue-100 text-blue-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
-                {selectedAudit.status.charAt(0).toUpperCase() + selectedAudit.status.slice(1)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <AuditHeader 
+        selectedAudit={selectedAudit}
+        onBack={onBack}
+      />
 
       {/* Navigation Tabs */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8 overflow-x-auto">
-            {AUDIT_MODULES.map((module) => {
-              const isActive = currentModule === module.id;
-              const Icon = getModuleIcon(module.id);
-              
-              let itemCount = 0;
-              if (module.id === 'itgcs') itemCount = currentData?.controls?.length || 0;
-              else if (module.id === 'itacs') itemCount = currentData?.itacs?.length || 0;
-              else if (module.id === 'key-reports') itemCount = currentData?.keyReports?.length || 0;
-              else if (module.id === 'walkthroughs') itemCount = currentData?.applications?.length || 0;
-              
-              return (
-                <button
-                  key={module.id}
-                  onClick={() => onModuleChange(module.id)}
-                  className={`flex items-center space-x-2 py-4 border-b-2 font-medium text-sm transition-colors ${
-                    isActive
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{module.name}</span>
-                  {itemCount > 0 && (
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {itemCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      <AuditNavigation
+        currentModule={currentModule}
+        onModuleChange={onModuleChange}
+        currentData={extractedData}
+        walkthroughApplications={walkthroughApplications || []}
+      />
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
-          {/* ✅ FIXED: File Upload Section - Only show on Overview tab */}
-          {currentModule === 'overview' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Files</h2>
-              
-              <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
-                }`}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-              >
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Upload ITGC Master List</h3>
-                <p className="text-gray-600 mb-4">
-                  Drag and drop your Excel file here, or click to browse
-                </p>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Choose File
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                  className="hidden"
-                />
-              </div>
+          {/* Audit Details Section */}
+          <AuditDetails 
+            currentModule={currentModule}
+            user={user}
+            selectedAudit={selectedAudit}
+          />
 
-              {/* Uploaded Files List */}
-              {uploadedFiles.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">Uploaded Files</h3>
-                  <div className="space-y-2">
-                    {uploadedFiles.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <FileText className="h-5 w-5 text-blue-600" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                          <span className="text-sm text-green-600">Processed</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Overview/Summary Cards - Only show on Overview tab */}
-          {currentModule === 'overview' && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Audit Overview</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <button
-                  onClick={() => handleSummaryCardClick('itgcs')}
-                  className="bg-white border-2 border-blue-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-lg transition-all text-left group"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                      <CheckCircle className="h-8 w-8 text-blue-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-blue-600">{currentData?.controls?.length || 0}</p>
-                      <p className="text-sm text-gray-500">Controls</p>
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-700">IT General Controls</h3>
-                  <p className="text-gray-600 text-sm">System-level controls that support the IT environment</p>
-                </button>
-
-                <button
-                  onClick={() => handleSummaryCardClick('key-reports')}
-                  className="bg-white border-2 border-green-200 rounded-lg p-6 hover:border-green-300 hover:shadow-lg transition-all text-left group"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                      <FileText className="h-8 w-8 text-green-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-green-600">{currentData?.keyReports?.length || 0}</p>
-                      <p className="text-sm text-gray-500">Reports</p>
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-green-700">Key Reports</h3>
-                  <p className="text-gray-600 text-sm">Critical reports for audit evidence and testing</p>
-                </button>
-
-                <button
-                  onClick={() => handleSummaryCardClick('itacs')}
-                  className="bg-white border-2 border-purple-200 rounded-lg p-6 hover:border-purple-300 hover:shadow-lg transition-all text-left group"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                      <Settings className="h-8 w-8 text-purple-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-purple-600">{currentData?.itacs?.length || 0}</p>
-                      <p className="text-sm text-gray-500">Controls</p>
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-purple-700">IT Application Controls</h3>
-                  <p className="text-gray-600 text-sm">Automated controls within applications and systems</p>
-                </button>
-
-                <button
-                  onClick={() => handleSummaryCardClick('walkthroughs')}
-                  className="bg-white border-2 border-orange-200 rounded-lg p-6 hover:border-orange-300 hover:shadow-lg transition-all text-left group"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
-                      <Eye className="h-8 w-8 text-orange-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-orange-600">{currentData?.applications?.length || 0}</p>
-                      <p className="text-sm text-gray-500">Applications</p>
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-orange-700">Walkthroughs</h3>
-                  <p className="text-gray-600 text-sm">Process documentation and business system walkthroughs</p>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ITGCs Tab - ✅ FIXED: Added overflow protection */}
-          {currentModule === 'itgcs' && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">IT General Controls ({currentData?.controls?.length || 0})</h2>
-                <button className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Controls
-                </button>
-              </div>
-
-              {currentData?.controls && currentData.controls.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {currentData.controls.map((control, index) => {
-                    const Icon = getControlIcon(control.description);
-                    const shortDescription = getShortDescriptionForParsing(control.description);
-                    const statusInfo = getSamplingStatusInfo(control.id);
-                    
-                    return (
-                      <div
-                        key={control.id || index}
-                        onClick={() => handleControlClick(control)}
-                        className={`bg-white border rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden ${statusInfo.borderClass}`}
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors flex-shrink-0">
-                              <Icon className="h-5 w-5 text-blue-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors truncate">
-                                {shortDescription}
-                              </h3>
-                              <p className="text-sm text-gray-500 truncate">{control.category || 'General Control'}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(control.riskLevel || 'medium')}`}>
-                              {(control.riskLevel || 'MEDIUM').toUpperCase()}
-                            </span>
-                            {/* ✅ REAL-TIME STATUS BADGE WITH OVERFLOW PROTECTION */}
-                            {statusInfo.status !== 'No Sampling Required' && (
-                              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
-                                {statusInfo.icon && <statusInfo.icon size={12} />}
-                                <span className="truncate max-w-24">{statusInfo.status}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                          {control.description}
-                        </p>
-                        
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-1 text-gray-500">
-                            <Target className="h-4 w-4" />
-                            <span className="truncate">{control.controlObjective || 'Control Objective'}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-blue-600 group-hover:text-blue-700 flex-shrink-0">
-                            <Eye className="h-4 w-4" />
-                            <span>View Details</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No IT General Controls Found</h3>
-                  <p className="text-gray-600">Upload an Excel file to load ITGC data</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Key Reports Tab - ✅ FIXED: Added overflow protection */}
-          {currentModule === 'key-reports' && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Key Reports ({currentData?.keyReports?.length || 0})</h2>
-                <button className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Reports
-                </button>
-              </div>
-
-              {currentData?.keyReports && currentData.keyReports.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {currentData.keyReports.map((report, index) => {
-                    const statusInfo = getSamplingStatusInfo(report.id);
-                    
-                    return (
-                      <div
-                        key={report.id || index}
-                        onClick={() => handleKeyReportClick(report)}
-                        className={`bg-white border rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden ${statusInfo.borderClass}`}
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors flex-shrink-0">
-                              <FileText className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors truncate">
-                                {report.name || `Report ${index + 1}`}
-                              </h3>
-                              <p className="text-sm text-gray-500 truncate">{report.reportType || 'Standard Report'}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${getRiskLevelColor(report.criticality || 'medium')}`}>
-                              {(report.criticality || 'MEDIUM').toUpperCase()}
-                            </span>
-                            {/* ✅ REAL-TIME STATUS BADGE FOR KEY REPORTS */}
-                            {statusInfo.status !== 'No Sampling Required' && (
-                              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
-                                {statusInfo.icon && <statusInfo.icon size={12} />}
-                                <span className="truncate max-w-24">{statusInfo.status}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                          {report.description || 'Key report for audit testing and evidence collection'}
-                        </p>
-                        
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
-                            <Activity className="h-4 w-4 flex-shrink-0" />
-                            <span className="truncate">{report.frequency || 'As Needed'}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-green-600 group-hover:text-green-700 flex-shrink-0">
-                            <Eye className="h-4 w-4" />
-                            <span>View Details</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Key Reports Found</h3>
-                  <p className="text-gray-600">Upload an Excel file to load key reports data</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ITACs Tab - ✅ FIXED: Added overflow protection */}
-          {currentModule === 'itacs' && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">IT Application Controls ({currentData?.itacs?.length || 0})</h2>
-                <button className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export ITACs
-                </button>
-              </div>
-
-              {currentData?.itacs && currentData.itacs.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {currentData.itacs.map((itac, index) => {
-                    const statusInfo = getSamplingStatusInfo(itac.id);
-                    
-                    return (
-                      <div
-                        key={itac.id || index}
-                        onClick={() => handleITACClick(itac)}
-                        className={`bg-white border rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden ${statusInfo.borderClass}`}
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors flex-shrink-0">
-                              <Settings className="h-5 w-5 text-purple-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-gray-900 group-hover:text-purple-700 transition-colors truncate">
-                                {itac.processName || `ITAC ${index + 1}`}
-                              </h3>
-                              <p className="text-sm text-gray-500 truncate">{itac.system || 'Application Control'}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(itac.riskLevel || 'medium')}`}>
-                              {(itac.riskLevel || 'MEDIUM').toUpperCase()}
-                            </span>
-                            {/* ✅ REAL-TIME STATUS BADGE FOR ITACS WITH OVERFLOW PROTECTION */}
-                            {statusInfo.status !== 'No Sampling Required' && (
-                              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
-                                {statusInfo.icon && <statusInfo.icon size={12} />}
-                                <span className="truncate max-w-24">{statusInfo.status}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                          {itac.controlDescription || itac.controlType || 'Automated control within application system'}
-                        </p>
-                        
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
-                            <Zap className="h-4 w-4 flex-shrink-0" />
-                            <span className="truncate">{itac.controlType || 'Automated'}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-purple-600 group-hover:text-purple-700 flex-shrink-0">
-                            <Eye className="h-4 w-4" />
-                            <span>View Details</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No IT Application Controls Found</h3>
-                  <p className="text-gray-600">Upload an Excel file to load ITAC data</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Walkthroughs Tab - ✅ FIXED: Added red borders for auditor action required */}
-          {currentModule === 'walkthroughs' && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Walkthroughs ({currentData?.applications?.length || 0})</h2>
-                <button className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Walkthroughs
-                </button>
-              </div>
-
-              {currentData?.applications && currentData.applications.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {currentData.applications.map((application, index) => {
-                    return (
-                      <div
-                        key={application.id || index}
-                        onClick={() => handleWalkthroughClick(application)}
-                        className="bg-white border-red-400 border-2 rounded-lg p-6 cursor-pointer hover:shadow-lg transition-all group overflow-hidden"
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors flex-shrink-0">
-                              <Eye className="h-5 w-5 text-orange-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-gray-900 group-hover:text-orange-700 transition-colors truncate">
-                                {application.name || `Application ${index + 1}`}
-                              </h3>
-                              <p className="text-sm text-gray-500 truncate">{application.category || 'Business Application'}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(application.riskLevel || 'medium')}`}>
-                              {(application.riskLevel || 'MEDIUM').toUpperCase()}
-                            </span>
-                            {/* ✅ WALKTHROUGH ACTION REQUIRED BADGE */}
-                            <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-red-100 text-red-700">
-                              <AlertTriangle size={12} />
-                              <span className="truncate max-w-24">Action Required</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                          {application.description || 'Business application requiring walkthrough documentation and process review'}
-                        </p>
-                        
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
-                            <Users className="h-4 w-4 flex-shrink-0" />
-                            <span className="truncate">{application.owner || 'Business Owner'}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-orange-600 group-hover:text-orange-700 flex-shrink-0">
-                            <Eye className="h-4 w-4" />
-                            <span>View Details</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Applications Found</h3>
-                  <p className="text-gray-600">Upload an Excel file to load walkthrough applications</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Other module placeholders */}
-          {currentModule === 'key-systems' && (
-            <div className="text-center py-12">
-              <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Key Systems</h3>
-              <p className="text-gray-600">
-                System inventory and technology stack documentation
-              </p>
-            </div>
-          )}
-
-          {currentModule === 'findings-log' && (
-            <div className="text-center py-12">
-              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Findings Log</h3>
-              <p className="text-gray-600">
-                Track audit findings, deficiencies, and remediation status
-              </p>
-            </div>
-          )}
+          {/* Tab Content */}
+          <TabContentRenderer
+            currentModule={currentModule}
+            currentData={extractedData}
+            walkthroughApplications={walkthroughApplications || []}
+            walkthroughRequests={walkthroughRequests || []}
+            user={user}
+            uploadedFiles={uploadedFiles}
+            isDragOver={isDragOver}
+            fileInputRef={fileInputRef}
+            onSummaryCardClick={handleSummaryCardClick}
+            onFileUpload={() => fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onControlClick={handleControlClick}
+            onITACClick={handleITACClick}
+            onKeyReportClick={handleKeyReportClick}
+            onWalkthroughClick={handleWalkthroughClick}
+            onBulkSendWalkthroughRequests={handleBulkSendWalkthroughRequests}
+            onIndividualSendRequest={handleIndividualSendRequest}
+            onOpenScheduling={handleOpenScheduling}
+            onOpenCompletion={handleOpenCompletion}
+            formatFileSize={formatFileSize}
+            getSamplingStatusInfo={getSamplingStatusInfo}
+            getRiskLevelColor={getRiskLevelColor}
+            getShortDescriptionForParsing={getShortDescriptionForParsing}
+            getControlIcon={getControlIcon}
+          />
         </div>
       </div>
 
-      {/* ✅ FIXED: Control Detail Modal with state refresh on close */}
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+        className="hidden"
+      />
+
+      {/* Modals */}
+      <ClientSchedulingModal
+        isOpen={isSchedulingModalOpen}
+        onClose={() => {
+          setIsSchedulingModalOpen(false);
+          setSchedulingApplication(null);
+          setSchedulingRequestId(null);
+        }}
+        application={schedulingApplication!}
+        onSchedule={handleScheduleSubmission}
+      />
+
+      <WalkthroughCompletionModal
+        isOpen={isCompletionModalOpen}
+        onClose={() => {
+          setIsCompletionModalOpen(false);
+          setCompletionApplication(null);
+          setCompletionRequest(null);
+        }}
+        application={completionApplication!}
+        request={completionRequest!}
+        onComplete={handleCompletionSubmission}
+      />
+
       {selectedControl && (
         <ControlDetailModal
           control={selectedControl}
@@ -932,7 +522,6 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         />
       )}
 
-      {/* ✅ FIXED: Enhanced ITAC Detail Modal with state refresh on close */}
       {selectedITAC && (
         <ControlDetailModal
           control={{
@@ -956,7 +545,6 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         />
       )}
 
-      {/* ✅ FIXED: Enhanced Key Report Detail Modal with state refresh on close */}
       {selectedKeyReport && (
         <ControlDetailModal
           control={{
@@ -980,7 +568,6 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         />
       )}
 
-      {/* Walkthrough Detail Modal - No sampling integration needed */}
       {selectedWalkthrough && (
         <WalkthroughDetailModal
           application={selectedWalkthrough}

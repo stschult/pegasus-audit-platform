@@ -1,10 +1,11 @@
-// hooks/useAppState.ts - FIXED: Now uses frequency-based sampling engine instead of hardcoded logic
+// File: hooks/useAppState.ts - REFACTORED: Walkthrough Module Extracted
 import { useState, useEffect } from 'react';
 import { 
   AuditFormData, 
   ExcelData, 
   Audit, 
   UploadedFile,
+  User,
   SamplingConfig,
   GeneratedSample,
   EvidenceRequest,
@@ -13,10 +14,10 @@ import {
   SamplingAuditLog
 } from '../types';
 import { createSamplingConfigFromControlData, SamplingEngine } from '../utils/samplingEngine';
+import { useWalkthroughs } from '../hooks/useWalkthroughs';
 
 type ViewType = 'login' | 'dashboard' | 'create-audit' | 'audit-setup';
 
-// localStorage keys
 const STORAGE_KEYS = {
   SAMPLING_CONFIGS: 'audit_sampling_configs',
   GENERATED_SAMPLES: 'audit_generated_samples',
@@ -24,16 +25,16 @@ const STORAGE_KEYS = {
   EVIDENCE_SUBMISSIONS: 'audit_evidence_submissions',
   CONTROL_CLASSIFICATIONS: 'audit_control_classifications',
   SAMPLING_AUDIT_LOGS: 'audit_sampling_logs',
-  CURRENT_AUDIT: 'current_audit_data'
+  CURRENT_AUDIT: 'current_audit_data',
+  STORED_AUDITS: 'stored_audits'
 };
 
-// Helper functions for localStorage
 const saveToStorage = (key: string, data: any) => {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    console.log(`💾 Saved ${key} to localStorage:`, data.length || Object.keys(data).length);
+    console.log(`💾 Saved ${key} to storage`);
   } catch (error) {
-    console.error(`❌ Failed to save ${key} to localStorage:`, error);
+    console.error(`❌ Failed to save ${key}:`, error);
   }
 };
 
@@ -41,12 +42,12 @@ const loadFromStorage = <T>(key: string, defaultValue: T): T => {
   try {
     const stored = localStorage.getItem(key);
     if (stored) {
-      const parsed = JSON.parse(stored);
-      console.log(`📂 Loaded ${key} from localStorage:`, parsed.length || Object.keys(parsed).length);
-      return parsed;
+      const data = JSON.parse(stored);
+      console.log(`📋 Loaded ${key} from storage:`, data);
+      return data;
     }
   } catch (error) {
-    console.error(`❌ Failed to load ${key} from localStorage:`, error);
+    console.error(`❌ Failed to load ${key}:`, error);
   }
   return defaultValue;
 };
@@ -54,11 +55,74 @@ const loadFromStorage = <T>(key: string, defaultValue: T): T => {
 const clearStorage = () => {
   Object.values(STORAGE_KEYS).forEach(key => {
     localStorage.removeItem(key);
-    console.log(`🗑️ Cleared ${key} from localStorage`);
   });
 };
 
-// 🔧 HELPER FUNCTIONS - Type-safe normalization functions
+const extractDomainFromWebsite = (website: string): string => {
+  if (!website) return '';
+  
+  try {
+    let domain = website.toLowerCase()
+      .replace(/^https?:\/\//, '')     // Remove http:// or https://
+      .replace(/^www\./, '')           // Remove www.
+      .replace(/\/.*$/, '')            // Remove path after domain
+      .trim();
+    
+    console.log('🌐 extractDomainFromWebsite:', { website, domain });
+    return domain;
+  } catch (error) {
+    console.warn('Failed to extract domain from:', website);
+    return '';
+  }
+};
+
+const extractDomainFromEmail = (email: string): string => {
+  try {
+    const domain = email.split('@')[1].toLowerCase();
+    console.log('📧 extractDomainFromEmail:', { email, domain });
+    return domain;
+  } catch (error) {
+    console.warn('Failed to extract domain from email:', email);
+    return '';
+  }
+};
+
+const findAuditByClientDomain = (clientDomain: string): Audit | null => {
+  if (!clientDomain) return null;
+  
+  try {
+    const storedAudits = loadFromStorage(STORAGE_KEYS.STORED_AUDITS, []);
+    console.log('🔍 findAuditByClientDomain - searching:', { 
+      clientDomain, 
+      auditCount: storedAudits.length,
+      audits: storedAudits.map((a: Audit) => ({ 
+        companyName: a.companyName, 
+        clientDomain: a.clientDomain, 
+        website: a.website 
+      }))
+    });
+    
+    const matchingAudit = storedAudits.find((audit: Audit) => {
+      return audit.clientDomain === clientDomain;
+    });
+    
+    if (matchingAudit) {
+      console.log('✅ AUTO-MATCH FOUND:', { 
+        companyName: matchingAudit.companyName, 
+        clientDomain: matchingAudit.clientDomain
+      });
+      return matchingAudit;
+    }
+    
+    console.log('❌ No audit found for domain:', clientDomain);
+    return null;
+  } catch (error) {
+    console.error('Error finding audit:', error);
+    return null;
+  }
+};
+
+// Helper functions for type-safe normalization
 function normalizeRiskLevel(riskLevel?: string): 'high' | 'medium' | 'low' {
   if (!riskLevel) return 'medium';
   const normalized = riskLevel.toLowerCase();
@@ -71,16 +135,14 @@ function normalizeFrequency(frequency?: string): 'daily' | 'weekly' | 'monthly' 
   if (!frequency) return 'monthly';
   const normalized = frequency.toLowerCase().trim();
   
-  // Map Excel frequency values to our type system
   if (normalized === 'annually' || normalized === 'annual') return 'annually';
   if (normalized === 'quarterly') return 'quarterly';
   if (normalized === 'monthly') return 'monthly';
   if (normalized === 'weekly') return 'weekly';
   if (normalized === 'daily') return 'daily';
   if (normalized === 'as needed' || normalized === 'adhoc' || normalized === 'ad hoc') return 'adhoc';
-  if (normalized === 'continuous') return 'adhoc'; // Map continuous to adhoc for type compatibility
+  if (normalized === 'continuous') return 'adhoc';
   
-  // Default fallback
   console.warn(`Unknown frequency "${frequency}", defaulting to monthly`);
   return 'monthly';
 }
@@ -101,15 +163,15 @@ function determineControlType(description?: string): 'automated' | 'manual' | 'h
 }
 
 export const useAppState = () => {
-  // Existing state
   const [currentView, setCurrentView] = useState<ViewType>('login');
   const [selectedAudit, setSelectedAudit] = useState<Audit | null>(null);
   const [extractedData, setExtractedData] = useState<ExcelData | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [currentModule, setCurrentModule] = useState('overview');
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // NEW: Sampling state management with localStorage persistence
+  // ✅ Sampling state management
   const [samplingConfigs, setSamplingConfigs] = useState<SamplingConfig[]>([]);
   const [generatedSamples, setGeneratedSamples] = useState<GeneratedSample[]>([]);
   const [evidenceRequests, setEvidenceRequests] = useState<EvidenceRequest[]>([]);
@@ -117,10 +179,11 @@ export const useAppState = () => {
   const [controlClassifications, setControlClassifications] = useState<ControlClassification[]>([]);
   const [samplingAuditLogs, setSamplingAuditLogs] = useState<SamplingAuditLog[]>([]);
 
-  // Load data from localStorage on component mount
+  // ✅ REFACTORED: Use walkthrough module
+  const walkthroughModule = useWalkthroughs(user, selectedAudit);
+
+  // Load all sampling data from localStorage
   useEffect(() => {
-    console.log('🔄 Loading sampling data from localStorage...');
-    
     setSamplingConfigs(loadFromStorage(STORAGE_KEYS.SAMPLING_CONFIGS, []));
     setGeneratedSamples(loadFromStorage(STORAGE_KEYS.GENERATED_SAMPLES, []));
     setEvidenceRequests(loadFromStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, []));
@@ -128,16 +191,44 @@ export const useAppState = () => {
     setControlClassifications(loadFromStorage(STORAGE_KEYS.CONTROL_CLASSIFICATIONS, []));
     setSamplingAuditLogs(loadFromStorage(STORAGE_KEYS.SAMPLING_AUDIT_LOGS, []));
     
-    // Load current audit if exists
     const currentAuditData = loadFromStorage(STORAGE_KEYS.CURRENT_AUDIT, null);
     if (currentAuditData) {
       setSelectedAudit(currentAuditData.audit);
       setExtractedData(currentAuditData.extractedData);
       console.log('📋 Restored current audit session');
     }
+    
+    const savedUser = loadFromStorage('current_user', null);
+    if (savedUser) {
+      console.log('👤 Restoring user session:', savedUser.email);
+      setUser(savedUser);
+      
+      if (savedUser.userType === 'client') {
+        console.log('👤 Restored client - checking for auto-match');
+        const clientDomain = extractDomainFromEmail(savedUser.email);
+        const matchingAudit = findAuditByClientDomain(clientDomain);
+        
+        if (matchingAudit) {
+          console.log('✅ AUTO-MATCH SUCCESS on session restore!');
+          setSelectedAudit(matchingAudit);
+          if (matchingAudit.extractedData) {
+            console.log('📊 Restoring control framework for client');
+            setExtractedData(matchingAudit.extractedData);
+          }
+          setCurrentView('audit-setup');
+        } else {
+          console.log('⚠️ No auto-match found on session restore - going to dashboard');
+          setCurrentView('dashboard');
+        }
+      } else {
+        console.log('👨‍💼 Restored auditor session - going to dashboard');
+        setCurrentView('dashboard');
+      }
+    }
+    setIsInitialized(true);
   }, []);
 
-  // Auto-save sampling data to localStorage whenever it changes
+  // Auto-save all sampling data to localStorage
   useEffect(() => {
     if (samplingConfigs.length > 0) {
       saveToStorage(STORAGE_KEYS.SAMPLING_CONFIGS, samplingConfigs);
@@ -174,7 +265,6 @@ export const useAppState = () => {
     }
   }, [samplingAuditLogs]);
 
-  // Save current audit session
   useEffect(() => {
     if (selectedAudit) {
       saveToStorage(STORAGE_KEYS.CURRENT_AUDIT, {
@@ -184,17 +274,62 @@ export const useAppState = () => {
     }
   }, [selectedAudit, extractedData]);
 
-  // Existing handlers
-  const handleLogin = (email: string, password: string) => {
-    if (email && password) {
-      setUser({ name: email.split('@')[0], email });
-      setCurrentView('dashboard');
-    } else {
+  useEffect(() => {
+    console.log('🔄 currentView changed to:', currentView);
+  }, [currentView]);
+
+  const handleLogin = (email: string, password: string, userType: 'auditor' | 'client') => {
+    console.log('🚀 handleLogin called:', { email, userType });
+    
+    if (user) {
+      console.log('⚠️ User already logged in, ignoring additional login calls');
+      return;
+    }
+    
+    if (!email || !password) {
       alert('Please enter email and password');
+      return;
+    }
+
+    const newUser: User = { 
+      id: `user-${Date.now()}`,
+      name: email.split('@')[0], 
+      email,
+      organization: userType === 'auditor' ? 'Audit Firm' : 'Client Company',
+      role: userType === 'auditor' ? 'Senior Auditor' : 'Client Lead',
+      userType,
+      isClient: userType === 'client'
+    };
+    
+    console.log('👤 Created user:', newUser);
+    setUser(newUser);
+    saveToStorage('current_user', newUser);
+    
+    if (userType === 'client') {
+      console.log('👤 Processing client login - checking for auto-match');
+      const clientDomain = extractDomainFromEmail(email);
+      const matchingAudit = findAuditByClientDomain(clientDomain);
+      
+      if (matchingAudit) {
+        console.log('✅ AUTO-MATCH SUCCESS on fresh login!');
+        setSelectedAudit(matchingAudit);
+        if (matchingAudit.extractedData) {
+          console.log('📊 Loading control framework for client');
+          setExtractedData(matchingAudit.extractedData);
+        }
+        setCurrentView('audit-setup');
+      } else {
+        console.log('⚠️ No auto-match found on fresh login - going to dashboard');
+        setCurrentView('dashboard');
+      }
+    } else {
+      console.log('👨‍💼 Auditor login - going to dashboard');
+      setCurrentView('dashboard');
     }
   };
 
   const handleLogout = () => {
+    console.log('🚪 Logging out and clearing user data only');
     setUser(null);
     setCurrentView('login');
     setSelectedAudit(null);
@@ -202,32 +337,24 @@ export const useAppState = () => {
     setUploadedFiles([]);
     setCurrentModule('overview');
     
-    // Clear sampling state and localStorage
-    setSamplingConfigs([]);
-    setGeneratedSamples([]);
-    setEvidenceRequests([]);
-    setEvidenceSubmissions([]);
-    setControlClassifications([]);
-    setSamplingAuditLogs([]);
-    clearStorage();
+    localStorage.removeItem('current_user');
   };
 
+  // Enhanced audit submit with auto-classification + walkthrough extraction
   const handleAuditSubmit = (formData: AuditFormData, excelData?: ExcelData) => {
-    console.log('🎉 Audit submitted successfully:', {
-      formData,
-      excelData: excelData ? {
-        controls: excelData.controls.length,
-        itacs: excelData.itacs.length,
-        keyReports: excelData.keyReports.length,
-        applications: excelData.applications?.length || 0
-      } : null
-    });
+    console.log('🎉 Creating new audit:', formData);
+    console.log('📊 Excel data included:', excelData ? {
+      controls: excelData.controls.length,
+      itacs: excelData.itacs.length,
+      keyReports: excelData.keyReports.length
+    } : 'None');
 
     const newAudit: Audit = {
       id: `audit-${Date.now()}`,
       clientName: formData.companyName,
       clientId: formData.clientId || `CLIENT-${Date.now()}`,
       website: formData.website || '',
+      clientDomain: extractDomainFromWebsite(formData.website || ''),
       relationshipOwner: formData.clientLead || 'Unknown',
       auditOwner: formData.auditLead || 'Unknown',
       progress: 0,
@@ -239,25 +366,36 @@ export const useAppState = () => {
       status: 'planning',
       createdAt: new Date().toISOString(),
       clientLead: formData.clientLead,
-      auditLead: formData.auditLead
+      auditLead: formData.auditLead,
+      extractedData: excelData,
+      
+      // Initialize walkthrough metadata
+      walkthroughsExtracted: false,
+      totalWalkthroughs: 0
     };
 
+    const existingAudits = loadFromStorage(STORAGE_KEYS.STORED_AUDITS, []);
+    existingAudits.push(newAudit);
+    saveToStorage(STORAGE_KEYS.STORED_AUDITS, existingAudits);
+    
+    console.log(`💾 Stored audit with domain: ${newAudit.clientDomain} for company: ${newAudit.companyName}`);
+    console.log(`📊 Audit includes ${excelData ? 'FULL' : 'NO'} control framework`);
+
+    // Auto-classify controls using sampling engine
     if (excelData) {
-      console.log('📊 Storing extracted Excel data:', excelData);
       setExtractedData(excelData);
-      
-      // FIXED: Use new frequency-based auto-classification
       handleAutoClassifyControlsWithFrequencyEngine(excelData, newAudit);
+      
+      // ✅ REFACTORED: Extract walkthroughs using new module
+      walkthroughModule.handleExtractWalkthroughsFromKeyReports(excelData, newAudit);
     }
 
     setSelectedAudit(newAudit);
     setCurrentView('audit-setup');
-    console.log(`✅ Audit created successfully for ${formData.companyName}!`);
   };
 
   const handleFileUpload = (fileList: FileList) => {
     const files = Array.from(fileList);
-    console.log('📁 Files uploaded:', files.map(f => f.name));
     
     const newUploadedFiles: UploadedFile[] = files.map(file => ({
       id: `file-${Date.now()}-${Math.random()}`,
@@ -271,57 +409,65 @@ export const useAppState = () => {
     setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
   };
 
-  // Navigation handlers
   const handleBackToDashboard = () => {
+    console.log('🔙 Going back to dashboard');
     setCurrentView('dashboard');
     setSelectedAudit(null);
     setExtractedData(null);
     setUploadedFiles([]);
     setCurrentModule('overview');
-    // Don't clear sampling data - keep it in localStorage
   };
 
   const handleCreateNewAudit = () => {
+    console.log('➕ Creating new audit');
     setCurrentView('create-audit');
   };
 
   const handleContinueAudit = () => {
+    console.log('▶️ Continuing audit');
     setCurrentView('audit-setup');
   };
 
-  // 🔧 FIXED: NEW frequency-based auto-classification using samplingEngine
+  const handleClearAll = () => {
+    console.log('🧹 Clearing ALL data (including audits)');
+    localStorage.clear();
+    setUser(null);
+    setCurrentView('login');
+    setSelectedAudit(null);
+    setExtractedData(null);
+    setUploadedFiles([]);
+    setCurrentModule('overview');
+    setSamplingConfigs([]);
+    setGeneratedSamples([]);
+    setEvidenceRequests([]);
+    setEvidenceSubmissions([]);
+    setControlClassifications([]);
+    setSamplingAuditLogs([]);
+  };
+
+  // Auto-classification using frequency-based engine
   const handleAutoClassifyControlsWithFrequencyEngine = (excelData: ExcelData, audit: Audit) => {
-    console.log('🚀 Auto-classifying controls using NEW frequency-based engine...');
-    console.log('🔍 Current samplingConfigs length:', samplingConfigs.length);
-    console.log('🔍 Current samplingConfigs:', samplingConfigs.map(c => c.controlId));
-    
     const classifications: ControlClassification[] = [];
     const newSamplingConfigs: SamplingConfig[] = [];
     
     // Process ITGCs
     excelData.controls.forEach(control => {
-      console.log(`🔍 Processing control: ${control.id}`);
-      
-      // FIXED: Create ControlData object from Excel row data
       const controlData = {
-        'Control frequency': control.frequency || 'Monthly', // Column F
-        'PwC risk rating (H/M/L)': control.riskLevel || 'M', // Column E
-        // Include any other properties that might be needed
+        'Control frequency': control.frequency || 'Monthly',
+        'PwC risk rating (H/M/L)': control.riskLevel || 'M',
         ...control
       };
       
-      // Use frequency-based engine to determine if sampling is required
       const requiresSampling = SamplingEngine.shouldSampleControl(controlData);
       
-      // Create classification using new engine
       const classification: ControlClassification = {
         controlId: control.id,
         requiresSampling,
         riskLevel: normalizeRiskLevel(control.riskLevel),
         controlType: determineControlType(control.description),
         frequency: normalizeFrequency(control.frequency),
-        confidence: 0.95, // High confidence with frequency-based classification
-        detectedKeywords: [], // Not needed with frequency-based approach
+        confidence: 0.95,
+        detectedKeywords: [],
         suggestedSampleSize: requiresSampling ? SamplingEngine.calculateSampleSizeFromFrequency(controlData) : 0,
         suggestedMethodology: SamplingEngine.getSamplingMethodology(controlData),
         classifiedAt: new Date().toISOString()
@@ -329,17 +475,10 @@ export const useAppState = () => {
       
       classifications.push(classification);
       
-      console.log(`🔍 Control ${control.id} - requiresSampling: ${classification.requiresSampling}, sampleSize: ${classification.suggestedSampleSize}`);
-      
-      // FIXED: Check current state, not localStorage
       if (classification.requiresSampling) {
         const existingConfig = samplingConfigs.find(c => c.controlId === control.id);
-        console.log(`🔍 Control ${control.id} - existingConfig found: ${!!existingConfig}`);
         
         if (!existingConfig) {
-          console.log(`✅ Creating new frequency-based config for control: ${control.id}`);
-          
-          // FIXED: Use new frequency-based engine
           const samplingConfig = createSamplingConfigFromControlData(
             control.id,
             controlData,
@@ -348,45 +487,31 @@ export const useAppState = () => {
           );
           
           if (samplingConfig) {
-            // Override system values with user context
             samplingConfig.createdBy = user?.email || 'system';
             newSamplingConfigs.push(samplingConfig);
-            console.log(`🎯 Created config: ${samplingConfig.sampleSize} samples using ${samplingConfig.methodology} methodology`);
-          } else {
-            console.log(`⚠️ No sampling config created for ${control.id} - control doesn't require sampling`);
           }
-        } else {
-          console.log(`⚠️ Skipping ${control.id} - config already exists`);
         }
-      } else {
-        console.log(`⚠️ Skipping ${control.id} - no sampling required (frequency: ${control.frequency})`);
       }
     });
 
     // Process ITACs with same logic
     excelData.itacs.forEach(itac => {
-      console.log(`🔍 Processing ITAC: ${itac.id}`);
-      
-      // FIXED: Create ControlData object from Excel row data
       const controlData = {
-        'Control frequency': itac.frequency || 'Monthly', // Column F
-        'PwC risk rating (H/M/L)': itac.riskLevel || 'M', // Column E
-        // Include any other properties that might be needed
+        'Control frequency': itac.frequency || 'Monthly',
+        'PwC risk rating (H/M/L)': itac.riskLevel || 'M',
         ...itac
       };
       
-      // Use frequency-based engine to determine if sampling is required
       const requiresSampling = SamplingEngine.shouldSampleControl(controlData);
       
-      // Create classification using new engine
       const classification: ControlClassification = {
         controlId: itac.id,
         requiresSampling,
         riskLevel: normalizeRiskLevel(itac.riskLevel),
         controlType: determineControlType(itac.description || itac.controlName || ''),
         frequency: normalizeFrequency(itac.frequency),
-        confidence: 0.95, // High confidence with frequency-based classification
-        detectedKeywords: [], // Not needed with frequency-based approach
+        confidence: 0.95,
+        detectedKeywords: [],
         suggestedSampleSize: requiresSampling ? SamplingEngine.calculateSampleSizeFromFrequency(controlData) : 0,
         suggestedMethodology: SamplingEngine.getSamplingMethodology(controlData),
         classifiedAt: new Date().toISOString()
@@ -394,17 +519,10 @@ export const useAppState = () => {
       
       classifications.push(classification);
       
-      console.log(`🔍 ITAC ${itac.id} - requiresSampling: ${classification.requiresSampling}, sampleSize: ${classification.suggestedSampleSize}`);
-      
-      // FIXED: Check current state, not localStorage
       if (classification.requiresSampling) {
         const existingConfig = samplingConfigs.find(c => c.controlId === itac.id);
-        console.log(`🔍 ITAC ${itac.id} - existingConfig found: ${!!existingConfig}`);
         
         if (!existingConfig) {
-          console.log(`✅ Creating new frequency-based config for ITAC: ${itac.id}`);
-          
-          // FIXED: Use new frequency-based engine
           const samplingConfig = createSamplingConfigFromControlData(
             itac.id,
             controlData,
@@ -413,34 +531,19 @@ export const useAppState = () => {
           );
           
           if (samplingConfig) {
-            // Override system values with user context
             samplingConfig.createdBy = user?.email || 'system';
             newSamplingConfigs.push(samplingConfig);
-            console.log(`🎯 Created config: ${samplingConfig.sampleSize} samples using ${samplingConfig.methodology} methodology`);
-          } else {
-            console.log(`⚠️ No sampling config created for ${itac.id} - control doesn't require sampling`);
           }
-        } else {
-          console.log(`⚠️ Skipping ${itac.id} - config already exists`);
         }
-      } else {
-        console.log(`⚠️ Skipping ${itac.id} - no sampling required (frequency: ${itac.frequency})`);
       }
     });
 
-    console.log(`🔍 Final results using NEW frequency-based engine:`);
-    console.log(`   - Classifications created: ${classifications.length}`);
-    console.log(`   - New configs to create: ${newSamplingConfigs.length}`);
-    console.log(`   - New config control IDs: ${newSamplingConfigs.map(c => c.controlId)}`);
-    console.log(`   - Sample sizes: ${newSamplingConfigs.map(c => `${c.controlId}:${c.sampleSize}`).join(', ')}`);
-
-    // Update state - replace existing classifications, only add new configs
+    // Update state
     setControlClassifications(classifications);
     if (newSamplingConfigs.length > 0) {
       setSamplingConfigs(prev => [...prev, ...newSamplingConfigs]);
     }
     
-    // Log the classification and config creation
     const auditLog: SamplingAuditLog = {
       id: `log-${Date.now()}`,
       samplingConfigId: 'auto-classification-frequency-based',
@@ -451,28 +554,22 @@ export const useAppState = () => {
     };
     setSamplingAuditLogs(prev => [...prev, auditLog]);
 
-    console.log(`✅ Auto-classified ${classifications.length} controls using NEW frequency-based engine`);
-    console.log(`✅ Created ${newSamplingConfigs.length} sampling configurations with proper frequency-based sample sizes`);
+    console.log(`✅ Auto-classified ${classifications.length} controls using frequency-based engine`);
   };
 
-  // Create or update sampling configuration
+  // All sampling workflow functions
   const handleSamplingConfigSave = (config: SamplingConfig) => {
-    console.log('💾 Saving sampling configuration:', config.id);
-    
     setSamplingConfigs(prev => {
       const existingIndex = prev.findIndex(c => c.id === config.id);
       if (existingIndex >= 0) {
-        // Update existing
         const updated = [...prev];
         updated[existingIndex] = config;
         return updated;
       } else {
-        // Add new
         return [...prev, config];
       }
     });
 
-    // Log the action
     const auditLog: SamplingAuditLog = {
       id: `log-${Date.now()}`,
       samplingConfigId: config.id,
@@ -482,28 +579,18 @@ export const useAppState = () => {
       details: `Sampling configuration ${config.status === 'draft' ? 'created' : 'updated'} for control ${config.controlId}`
     };
     setSamplingAuditLogs(prev => [...prev, auditLog]);
-
-    console.log(`✅ Sampling configuration saved: ${config.id}`);
   };
 
-  // Generate samples for a sampling configuration
   const handleGenerateSamples = (samplingConfig: SamplingConfig, samples: GeneratedSample[]) => {
-    console.log('🎯 Generating samples:', samples.length);
-    
-    // Remove existing samples for this config
     setGeneratedSamples(prev => prev.filter(s => s.samplingConfigId !== samplingConfig.id));
-    
-    // Add new samples
     setGeneratedSamples(prev => [...prev, ...samples]);
 
-    // Update config status
     setSamplingConfigs(prev => prev.map(config => 
       config.id === samplingConfig.id 
         ? { ...config, status: 'generated' }
         : config
     ));
 
-    // Log the generation
     const auditLog: SamplingAuditLog = {
       id: `log-${Date.now()}`,
       samplingConfigId: samplingConfig.id,
@@ -513,29 +600,21 @@ export const useAppState = () => {
       details: `Generated ${samples.length} samples using ${samplingConfig.methodology} methodology`
     };
     setSamplingAuditLogs(prev => [...prev, auditLog]);
-
-    console.log(`✅ Generated ${samples.length} samples for ${samplingConfig.id}`);
   };
 
-  // NEW: Approve samples (auditor workflow)
   const handleApproveSamples = (samplingConfigId: string) => {
-    console.log('✅ Approving samples for config:', samplingConfigId);
-    
-    // Update config status
     setSamplingConfigs(prev => prev.map(config => 
       config.id === samplingConfigId 
         ? { ...config, status: 'approved', approvedAt: new Date().toISOString(), approvedBy: user?.email || 'unknown' }
         : config
     ));
 
-    // Update all samples for this config
     setGeneratedSamples(prev => prev.map(sample => 
       sample.samplingConfigId === samplingConfigId 
         ? { ...sample, status: 'approved' }
         : sample
     ));
 
-    // Log the approval
     const auditLog: SamplingAuditLog = {
       id: `log-${Date.now()}`,
       samplingConfigId,
@@ -545,106 +624,221 @@ export const useAppState = () => {
       details: 'Sample selection approved by auditor'
     };
     setSamplingAuditLogs(prev => [...prev, auditLog]);
-
-    console.log(`✅ Samples approved for ${samplingConfigId}`);
   };
 
-  // UPDATED: Create evidence request with status change - FIXED: Pass current state for immediate checks
   const handleCreateEvidenceRequest = (request: EvidenceRequest) => {
-    console.log('📤 Creating evidence request:', request.id);
-    
-    // Update state with new request FIRST
-    const updatedRequests = [...evidenceRequests, request];
-    setEvidenceRequests(updatedRequests);
-    console.log('🔍 AFTER SETTING STATE - evidenceRequests length:', updatedRequests.length);
+    const enhancedRequest: EvidenceRequest = {
+      ...request,
+      currentResponsibleParty: 'client',
+      status: 'sent',
+      sentAt: new Date().toISOString()
+    };
 
-    // FIXED: Update sampling config status from 'approved' to 'sent'
-    if (request.samplingConfigId) {
+    const updatedRequests = [...evidenceRequests, enhancedRequest];
+    setEvidenceRequests(updatedRequests);
+
+    if (enhancedRequest.samplingConfigId) {
       setSamplingConfigs(prev => prev.map(config => 
-        config.id === request.samplingConfigId 
-          ? { ...config, status: 'sent' }
+        config.id === enhancedRequest.samplingConfigId 
+          ? { 
+              ...config, 
+              status: 'sent',
+              currentResponsibleParty: 'client'
+            }
           : config
       ));
 
-      // Log the action
       const auditLog: SamplingAuditLog = {
         id: `log-${Date.now()}`,
-        samplingConfigId: request.samplingConfigId,
+        samplingConfigId: enhancedRequest.samplingConfigId,
         action: 'sent',
         performedBy: user?.email || 'unknown',
         performedAt: new Date().toISOString(),
-        details: `Evidence request sent to client with ${request.samplingDetails?.selectedDates.length || 0} sample dates`
+        details: `Evidence request sent to client with ${enhancedRequest.samplingDetails?.selectedDates.length || 0} sample dates. Ball in client's court.`
       };
       setSamplingAuditLogs(prev => [...prev, auditLog]);
     }
 
-    console.log(`✅ Evidence request created: ${request.id}`);
+    console.log(`✅ Evidence request created with enhanced status tracking: ${enhancedRequest.id}`);
     
-    // FIXED: Return status using the UPDATED React state instead of stale localStorage
-    const newStatus = getSamplingStatusForControl(request.controlId, updatedRequests);
-    console.log(`🔍 Current status (with updated data): ${newStatus}`);
+    return {
+      newStatus: getSamplingStatusForControl(enhancedRequest.controlId, updatedRequests),
+      responsibleParty: 'client'
+    };
   };
 
-  // Update evidence request status
   const handleUpdateEvidenceRequest = (requestId: string, updates: Partial<EvidenceRequest>) => {
-    console.log('📝 Updating evidence request:', requestId);
-    
-    setEvidenceRequests(prev => prev.map(req => 
-      req.id === requestId ? { ...req, ...updates } : req
-    ));
+    setEvidenceRequests(prev => prev.map(req => {
+      if (req.id === requestId) {
+        const updatedRequest = { ...req, ...updates };
+        
+        if (updates.status === 'sent') {
+          updatedRequest.currentResponsibleParty = 'client';
+        } else if (updates.status === 'submitted' || updates.status === 'under_review') {
+          updatedRequest.currentResponsibleParty = 'auditor';
+        } else if (updates.status === 'requires_clarification') {
+          updatedRequest.currentResponsibleParty = 'client';
+        } else if (updates.status === 'approved') {
+          updatedRequest.currentResponsibleParty = 'completed';
+        }
+        
+        return updatedRequest;
+      }
+      return req;
+    }));
   };
 
-  // Handle evidence submission (from client)
   const handleEvidenceSubmission = (submission: EvidenceSubmission) => {
-    console.log('📥 Handling evidence submission:', submission.id);
-    
-    setEvidenceSubmissions(prev => [...prev, submission]);
+    const enhancedSubmission: EvidenceSubmission = {
+      ...submission,
+      status: 'uploaded',
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: user?.email || 'client'
+    };
 
-    // Update evidence request status
-    setEvidenceRequests(prev => prev.map(req => 
-      req.id === submission.evidenceRequestId 
-        ? { ...req, status: 'submitted', submittedAt: submission.uploadedAt }
-        : req
-    ));
+    const updatedSubmissions = [...evidenceSubmissions, enhancedSubmission];
+    setEvidenceSubmissions(updatedSubmissions);
 
-    // Log evidence received
-    const request = evidenceRequests.find(r => r.id === submission.evidenceRequestId);
-    if (request?.samplingConfigId) {
+    const relatedRequest = evidenceRequests.find(req => req.id === submission.evidenceRequestId);
+    if (relatedRequest) {
+      const requestSubmissions = updatedSubmissions.filter(s => s.evidenceRequestId === relatedRequest.id);
+      const expectedEvidenceCount = relatedRequest.samplingDetails?.selectedDates.length || 1;
+      const submittedCount = requestSubmissions.length;
+      
+      let newRequestStatus: EvidenceRequest['status'] = 'submitted';
+      let newResponsibleParty: 'auditor' | 'client' = 'auditor';
+      
+      if (submittedCount >= expectedEvidenceCount) {
+        newRequestStatus = 'submitted';
+        newResponsibleParty = 'auditor';
+      } else {
+        newRequestStatus = 'in_progress';
+        newResponsibleParty = 'client';
+      }
+
+      setEvidenceRequests(prev => prev.map(req => 
+        req.id === submission.evidenceRequestId 
+          ? { 
+              ...req, 
+              status: newRequestStatus,
+              currentResponsibleParty: newResponsibleParty,
+              submittedAt: newRequestStatus === 'submitted' ? new Date().toISOString() : req.submittedAt
+            }
+          : req
+      ));
+
+      if (relatedRequest.samplingConfigId && submittedCount >= expectedEvidenceCount) {
+        setSamplingConfigs(prev => prev.map(config => 
+          config.id === relatedRequest.samplingConfigId 
+            ? { 
+                ...config, 
+                status: 'completed',
+                currentResponsibleParty: 'auditor'
+              }
+            : config
+        ));
+      }
+
       const auditLog: SamplingAuditLog = {
         id: `log-${Date.now()}`,
-        samplingConfigId: request.samplingConfigId,
+        samplingConfigId: relatedRequest.samplingConfigId || 'general',
         action: 'evidence_received',
         performedBy: submission.uploadedBy,
         performedAt: submission.uploadedAt,
-        details: `Evidence submitted: ${submission.fileName} for ${submission.sampleDate || 'general evidence'}`
+        details: `Evidence submitted: ${submission.fileName} for ${submission.sampleDate || 'general evidence'}. Status: ${submittedCount}/${expectedEvidenceCount} complete. Ball in ${newResponsibleParty}'s court.`
       };
       setSamplingAuditLogs(prev => [...prev, auditLog]);
     }
 
-    console.log(`✅ Evidence submission processed: ${submission.id}`);
+    console.log(`✅ Evidence submission processed with enhanced status tracking: ${enhancedSubmission.id}`);
+    
+    return {
+      newStatus: relatedRequest ? getSamplingStatusForControl(relatedRequest.controlId, evidenceRequests, updatedSubmissions) : 'unknown',
+      responsibleParty: relatedRequest?.currentResponsibleParty || 'auditor'
+    };
   };
 
-  // 🔧 FIXED: Get sampling data for a specific control - PRIORITIZE React state over localStorage
-  const getSamplingDataForControl = (controlId: string, currentRequests?: EvidenceRequest[], currentSubmissions?: EvidenceSubmission[]) => {
-    console.log('🔍 DEBUG: getSamplingDataForControl called for:', controlId);
+  const handleApproveEvidence = (submissionId: string, approvalNotes?: string) => {
+    const updatedSubmissions = evidenceSubmissions.map(submission =>
+      submission.id === submissionId
+        ? {
+            ...submission,
+            status: 'approved' as const,
+            reviewNotes: approvalNotes,
+            reviewedAt: new Date().toISOString(),
+            reviewedBy: user?.email || 'auditor'
+          }
+        : submission
+    );
     
-    const config = samplingConfigs.find(c => c.controlId === controlId);
-    const samples = generatedSamples.filter(s => s.samplingConfigId === config?.id);
+    setEvidenceSubmissions(updatedSubmissions);
+
+    const approvedSubmission = updatedSubmissions.find(s => s.id === submissionId);
+    if (approvedSubmission) {
+      const relatedRequest = evidenceRequests.find(req => req.id === approvedSubmission.evidenceRequestId);
+      
+      if (relatedRequest) {
+        const requestSubmissions = updatedSubmissions.filter(s => s.evidenceRequestId === relatedRequest.id);
+        const allApproved = requestSubmissions.every(s => s.status === 'approved');
+        
+        if (allApproved && requestSubmissions.length > 0) {
+          setEvidenceRequests(prev => prev.map(req =>
+            req.id === relatedRequest.id
+              ? {
+                  ...req,
+                  status: 'approved',
+                  currentResponsibleParty: 'completed',
+                  reviewedAt: new Date().toISOString()
+                }
+              : req
+          ));
+
+          if (relatedRequest.samplingConfigId) {
+            setSamplingConfigs(prev => prev.map(config =>
+              config.id === relatedRequest.samplingConfigId
+                ? {
+                    ...config,
+                    status: 'completed',
+                    currentResponsibleParty: 'completed'
+                  }
+                : config
+            ));
+          }
+
+          const auditLog: SamplingAuditLog = {
+            id: `log-${Date.now()}`,
+            samplingConfigId: relatedRequest.samplingConfigId || 'general',
+            action: 'completed',
+            performedBy: user?.email || 'auditor',
+            performedAt: new Date().toISOString(),
+            details: `All evidence approved for control. Workflow complete.`
+          };
+          setSamplingAuditLogs(prev => [...prev, auditLog]);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      newStatus: approvedSubmission ? getSamplingStatusForControl(
+        evidenceRequests.find(r => r.id === approvedSubmission.evidenceRequestId)?.controlId || '',
+        evidenceRequests,
+        updatedSubmissions
+      ) : 'unknown'
+    };
+  };
+
+  // Get sampling data for control - handles multiple configs
+  const getSamplingDataForControl = (controlId: string, currentRequests?: EvidenceRequest[], currentSubmissions?: EvidenceSubmission[]) => {
+    const controlConfigs = samplingConfigs.filter(c => c.controlId === controlId);
+    const configIds = controlConfigs.map(c => c.id);
+    const samples = generatedSamples.filter(s => configIds.includes(s.samplingConfigId));
+    const config = controlConfigs.length > 0 ? controlConfigs[controlConfigs.length - 1] : null;
+    
     const classification = controlClassifications.find(c => c.controlId === controlId);
     
-    // PRIORITIZE current React state over localStorage
-    let requestsToUse = currentRequests;
-    if (!requestsToUse || requestsToUse.length === 0) {
-      console.log('🔍 DEBUG: No current requests provided, falling back to localStorage');
-      requestsToUse = loadFromStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, []);
-    } else {
-      console.log('🔍 DEBUG: Using provided React state requests, length:', requestsToUse.length);
-    }
-    
-    let submissionsToUse = currentSubmissions;
-    if (!submissionsToUse || submissionsToUse.length === 0) {
-      submissionsToUse = loadFromStorage(STORAGE_KEYS.EVIDENCE_SUBMISSIONS, []);
-    }
+    let requestsToUse = currentRequests || evidenceRequests;
+    let submissionsToUse = currentSubmissions || evidenceSubmissions;
     
     const requests = requestsToUse.filter(r => r.controlId === controlId);
     const submissions = submissionsToUse.filter(s => 
@@ -658,27 +852,17 @@ export const useAppState = () => {
       requests,
       submissions,
       requiresSampling: classification?.requiresSampling || false,
-      hasConfig: !!config,
+      hasConfig: controlConfigs.length > 0,
       hasApprovedSamples: samples.filter(s => s.status === 'approved').length > 0,
       sampleCount: samples.filter(s => s.status === 'approved').length,
       evidenceRequests: requests
     };
   };
 
-  // Get evidence status for a control - FIXED: PRIORITIZE React state over localStorage
   const getEvidenceStatusForControl = (controlId: string, currentRequests?: EvidenceRequest[], currentSubmissions?: EvidenceSubmission[]) => {
-    console.log('🔍 DEBUG: Checking evidence status for', controlId);
+    let requestsToUse = currentRequests || evidenceRequests;
     
-    // PRIORITIZE current React state over localStorage
-    let requestsToUse = currentRequests;
-    if (!requestsToUse || requestsToUse.length === 0) {
-      console.log('🔍 DEBUG: No current evidence data provided, falling back to localStorage');
-      requestsToUse = loadFromStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, []);
-    }
-    
-    console.log('🔍 DEBUG: evidenceRequests array length:', requestsToUse.length);
     const requestsForControl = requestsToUse.filter(req => req.controlId === controlId);
-    console.log('🔍 DEBUG: evidenceRequests for this control:', requestsForControl);
     
     if (requestsForControl.length === 0) {
       return 'not_requested';
@@ -696,58 +880,58 @@ export const useAppState = () => {
     return 'complete';
   };
 
-  // 🔧 FIXED: New status workflow implementation - EVIDENCE REQUESTS TAKE PRIORITY
   const getSamplingStatusForControl = (controlId: string, currentRequests?: EvidenceRequest[], currentSubmissions?: EvidenceSubmission[]): string => {
-    console.log(`🔍 DEBUG: Checking status for ${controlId}`);
+    let requestsToUse = currentRequests || evidenceRequests;
+    let submissionsToUse = currentSubmissions || evidenceSubmissions;
     
-    // PRIORITIZE current React state over localStorage
-    let requestsToUse = currentRequests;
-    if (!requestsToUse || requestsToUse.length === 0) {
-      console.log(`🔍 DEBUG: No current requests provided, falling back to localStorage`);
-      requestsToUse = loadFromStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, []);
-    } else {
-      console.log(`🔍 DEBUG: Using provided React state requests, length:`, requestsToUse.length);
-    }
-    
-    console.log(`🔍 DEBUG: evidenceRequests array length:`, requestsToUse.length);
     const controlRequests = requestsToUse.filter(req => req.controlId === controlId);
-    console.log(`🔍 DEBUG: evidenceRequests for this control:`, controlRequests);
 
-    // 🔧 FIX 1: Check for evidence requests FIRST (highest priority)
     if (controlRequests.length > 0) {
-      console.log(`✅ DEBUG: Found evidence request for ${controlId}, status: Evidence Request Sent`);
-      return 'Evidence Request Sent';
+      const latestRequest = controlRequests[controlRequests.length - 1];
+      
+      const requestSubmissions = submissionsToUse.filter(s => 
+        controlRequests.some(req => req.id === s.evidenceRequestId)
+      );
+      
+      const expectedEvidenceCount = latestRequest.samplingDetails?.selectedDates.length || 1;
+      const submittedCount = requestSubmissions.filter(s => s.status !== 'rejected').length;
+      const approvedCount = requestSubmissions.filter(s => s.status === 'approved').length;
+      
+      if (approvedCount === expectedEvidenceCount && expectedEvidenceCount > 0) {
+        return 'Evidence Approved';
+      } else if (submittedCount === expectedEvidenceCount && expectedEvidenceCount > 0) {
+        return 'All Evidence Submitted';
+      } else if (submittedCount > 0) {
+        return 'Partial Evidence Submitted';
+      } else if (latestRequest.status === 'requires_clarification') {
+        return 'Evidence Followup Required';
+      } else if (latestRequest.status === 'sent') {
+        return 'Evidence Request Sent';
+      } else {
+        return 'Evidence Request Sent';
+      }
     }
 
-    // Get sampling data only if NO evidence requests exist
     const samplingData = getSamplingDataForControl(controlId, currentRequests, currentSubmissions);
     
-    // 🔧 FIX 2: Only check sampling status if NO evidence requests exist
     if (!samplingData.requiresSampling) {
-      console.log(`✅ DEBUG: ${controlId} does not require sampling, status: No Sampling Required`);
       return 'No Sampling Required';
     }
 
     if (!samplingData.hasConfig) {
-      console.log(`✅ DEBUG: ${controlId} needs sampling config, status: Needs Sampling`);
       return 'Needs Sampling';
     }
 
     if (!samplingData.hasApprovedSamples) {
-      console.log(`✅ DEBUG: ${controlId} has config but no approved samples, status: Sampling Configured`);
       return 'Sampling Configured';
     }
 
-    // Should not reach here if evidence request exists, but fallback
-    console.log(`✅ DEBUG: ${controlId} ready for evidence request, status: Ready for Evidence Request`);
     return 'Ready for Evidence Request';
   };
 
-  // ✅ NEW: Force refresh all state from localStorage - THIS IS THE FIX FOR THE STATE SYNC ISSUE
   const refreshState = () => {
     console.log('🔄 Refreshing all state from localStorage...');
     
-    // Reload all sampling data from localStorage
     setSamplingConfigs(loadFromStorage(STORAGE_KEYS.SAMPLING_CONFIGS, []));
     setGeneratedSamples(loadFromStorage(STORAGE_KEYS.GENERATED_SAMPLES, []));
     setEvidenceRequests(loadFromStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, []));
@@ -755,7 +939,9 @@ export const useAppState = () => {
     setControlClassifications(loadFromStorage(STORAGE_KEYS.CONTROL_CLASSIFICATIONS, []));
     setSamplingAuditLogs(loadFromStorage(STORAGE_KEYS.SAMPLING_AUDIT_LOGS, []));
     
-    // Also reload current audit if exists
+    // ✅ REFACTORED: Refresh walkthrough state
+    walkthroughModule.refreshWalkthroughState();
+    
     const currentAuditData = loadFromStorage(STORAGE_KEYS.CURRENT_AUDIT, null);
     if (currentAuditData) {
       setSelectedAudit(currentAuditData.audit);
@@ -766,15 +952,15 @@ export const useAppState = () => {
   };
 
   return {
-    // Existing state
     currentView,
     selectedAudit,
     extractedData,
     uploadedFiles,
     currentModule,
     user,
+    isInitialized,
     
-    // NEW: Sampling state
+    // Sampling state
     samplingConfigs,
     generatedSamples,
     evidenceRequests,
@@ -782,7 +968,11 @@ export const useAppState = () => {
     controlClassifications,
     samplingAuditLogs,
     
-    // Existing actions
+    // ✅ REFACTORED: Walkthrough state from module
+    walkthroughApplications: walkthroughModule.walkthroughApplications,
+    walkthroughRequests: walkthroughModule.walkthroughRequests,
+    walkthroughSessions: walkthroughModule.walkthroughSessions,
+    
     handleLogin,
     handleLogout,
     handleAuditSubmit,
@@ -791,8 +981,9 @@ export const useAppState = () => {
     handleCreateNewAudit,
     handleContinueAudit,
     setCurrentModule,
+    handleClearAll,
     
-    // NEW: Sampling actions - Using frequency-based engine
+    // Sampling workflow functions
     handleAutoClassifyControls: handleAutoClassifyControlsWithFrequencyEngine,
     handleSamplingConfigSave,
     handleGenerateSamples,
@@ -800,11 +991,26 @@ export const useAppState = () => {
     handleCreateEvidenceRequest,
     handleUpdateEvidenceRequest,
     handleEvidenceSubmission,
+    handleApproveEvidence,
     getSamplingDataForControl,
     getEvidenceStatusForControl,
     getSamplingStatusForControl,
+    refreshState,
     
-    // ✅ NEW: State refresh function - THE KEY FIX FOR STATE SYNCHRONIZATION
-    refreshState
+    // ✅ REFACTORED: Walkthrough functions from module
+    handleExtractWalkthroughsFromKeyReports: walkthroughModule.handleExtractWalkthroughsFromKeyReports,
+    handleCreateWalkthroughRequest: walkthroughModule.handleCreateWalkthroughRequest,
+    handleUpdateWalkthroughRequest: walkthroughModule.handleUpdateWalkthroughRequest,
+    handleSendWalkthroughRequests: walkthroughModule.handleSendWalkthroughRequests,
+    handleScheduleWalkthrough: walkthroughModule.handleScheduleWalkthrough,
+    handleCompleteWalkthrough: walkthroughModule.handleCompleteWalkthrough,
+    handleBulkWalkthroughAction: walkthroughModule.handleBulkWalkthroughAction,
+    
+    // Walkthrough query functions
+    getWalkthroughStatusForApplication: walkthroughModule.getWalkthroughStatusForApplication,
+    getWalkthroughRequestsForAudit: walkthroughModule.getWalkthroughRequestsForAudit,
+    getWalkthroughProgress: walkthroughModule.getWalkthroughProgress,
+    getWalkthroughTimeline: walkthroughModule.getWalkthroughTimeline,
+    groupWalkthroughsByApplication: walkthroughModule.groupWalkthroughsByApplication,
   };
 };

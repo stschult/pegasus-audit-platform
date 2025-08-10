@@ -1,12 +1,12 @@
-// components/audit/ControlDetailModal.tsx - FIXED TO PASS REACT STATE
-// Enhanced ITGC control detail modal with NEW sampling modal system
+// components/audit/ControlDetailModal.tsx - FIXED: Restore Auto Sample Generation
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Eye, Download, AlertCircle, CheckCircle, Clock, User, FileText, Target, Calendar } from 'lucide-react';
+import { X, Upload, Eye, Download, AlertCircle, CheckCircle, Clock, User, FileText, Target, Calendar, Shuffle } from 'lucide-react';
 import SamplingModal from './SamplingModal';
 import EvidenceModal from './EvidenceModal';
 import { useAppState } from '../../hooks/useAppState';
+import { createSamplingConfigFromControlData, SamplingEngine } from '../../utils/samplingEngine';
 
 export interface Control {
   id: string;
@@ -65,20 +65,59 @@ export default function ControlDetailModal({
   const [isChanged, setIsChanged] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'evidence' | 'sampling' | 'notes'>('details');
 
-  // NEW: Modal states for the new system
+  // Modal states
   const [samplingModalOpen, setSamplingModalOpen] = useState(false);
   const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
 
-  // ✅ FIXED: Get both status function AND current React state
+  // ✅ FIXED: Add auto-generation state
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+
   const { 
     getSamplingStatusForControl,
     evidenceRequests,
-    evidenceSubmissions
+    evidenceSubmissions,
+    user,
+    refreshState,
+    handleApproveEvidence,
+    handleEvidenceSubmission,
+    // ✅ FIXED: Add sampling handlers for auto-generation
+    handleSamplingConfigSave,
+    handleGenerateSamples,
+    handleApproveSamples,
+    samplingConfigs,
+    generatedSamples
   } = useAppState();
 
-  // Update edited control when prop changes
+  const getCurrentSamplingStatus = () => {
+    if (!editedControl) return 'No Sampling Required';
+    return getSamplingStatusForControl(editedControl.id, evidenceRequests, evidenceSubmissions);
+  };
+
   useEffect(() => {
-    if (control) {
+    if (isOpen && editedControl) {
+      const statusCheckInterval = setInterval(() => {
+        const newStatus = getSamplingStatusForControl(
+          editedControl.id, 
+          evidenceRequests, 
+          evidenceSubmissions
+        );
+        
+        const currentStatus = getCurrentSamplingStatus();
+        if (newStatus !== currentStatus) {
+          console.log('🔄 Status changed detected, refreshing state');
+          refreshState();
+        }
+      }, 2000);
+
+      return () => clearInterval(statusCheckInterval);
+    }
+  }, [isOpen, editedControl?.id, evidenceRequests, evidenceSubmissions]);
+
+  useEffect(() => {
+    if (isOpen && control) {
+      console.log('🔄 Modal opened, ensuring fresh state');
+      refreshState();
+      
       setEditedControl({ 
         ...control,
         enhancedTitle: control.enhancedTitle || control.title || control.name,
@@ -86,16 +125,11 @@ export default function ControlDetailModal({
       });
       setIsChanged(false);
     }
-  }, [control]);
+  }, [isOpen, control?.id]);
 
   if (!isOpen || !editedControl) return null;
 
-  // ✅ FIXED: Pass current React state to avoid localStorage fallback
-  const currentSamplingStatus = getSamplingStatusForControl(
-    editedControl.id, 
-    evidenceRequests, 
-    evidenceSubmissions
-  );
+  const currentSamplingStatus = getCurrentSamplingStatus();
 
   const handleInputChange = (field: string, value: any) => {
     setEditedControl((prev: any) => prev ? { ...prev, [field]: value } : null);
@@ -106,6 +140,11 @@ export default function ControlDetailModal({
     if (editedControl) {
       onUpdateControl(editedControl.id, editedControl);
       setIsChanged(false);
+      
+      setTimeout(() => {
+        console.log('🔄 Refreshing state after control save');
+        refreshState();
+      }, 100);
     }
   };
 
@@ -126,8 +165,99 @@ export default function ControlDetailModal({
         url: URL.createObjectURL(file)
       };
       setEvidenceList(prev => [...prev, newEvidence]);
+      
+      if (user?.userType === 'client') {
+        const evidenceSubmission = {
+          id: `submission-${Date.now()}-${Math.random()}`,
+          evidenceRequestId: `request-${editedControl.id}`,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: user.email,
+          description: `Evidence uploaded for ${editedControl.name || 'control'}`,
+          status: 'uploaded' as const
+        };
+        
+        const submissionResult = handleEvidenceSubmission(evidenceSubmission);
+        console.log('📁 Evidence submission processed:', submissionResult);
+      }
     });
+    
     setIsChanged(true);
+    
+    setTimeout(() => {
+      console.log('🔄 Refreshing state after evidence upload');
+      refreshState();
+    }, 200);
+  };
+
+  // ✅ FIXED: Silent auto-generate samples function
+  const handleAutoGenerateSamples = async () => {
+    setIsAutoGenerating(true);
+    
+    try {
+      console.log('🚀 Starting silent auto-generation for control:', editedControl.id);
+      
+      // Create Excel control data from the control object
+      const excelControlData = {
+        'Control frequency': editedControl.frequency || editedControl['control frequency'] || 'Annually',
+        'PwC risk rating (H/M/L)': editedControl.riskRating || editedControl['pwc risk rating (h/m/l)'] || 'M'
+      };
+      
+      console.log('📊 Excel control data:', excelControlData);
+      
+      // Check if sampling is required
+      const requiresSampling = SamplingEngine.shouldSampleControl(excelControlData);
+      
+      if (!requiresSampling) {
+        // For non-sampling controls, just mark as complete
+        console.log('❌ No sampling required for this control');
+        return;
+      }
+      
+      // Create configuration using the sampling engine
+      const config = createSamplingConfigFromControlData(
+        editedControl.id,
+        excelControlData,
+        auditPeriod.startDate.toISOString().split('T')[0],
+        auditPeriod.endDate.toISOString().split('T')[0]
+      );
+      
+      if (!config) {
+        console.error('Unable to create sampling configuration for this control.');
+        return;
+      }
+      
+      console.log('⚙️ Generated config:', config);
+      
+      // Save configuration with "generated" status (ready for review)
+      const configForReview = { ...config, status: 'generated' as const };
+      handleSamplingConfigSave(configForReview);
+      
+      // Generate samples
+      const samples = SamplingEngine.generateSamples(configForReview);
+      console.log('🎯 Generated samples:', samples);
+      
+      // Save samples (but don't auto-approve)
+      handleGenerateSamples(configForReview, samples);
+      
+      console.log('✅ Silent auto-generation completed - samples ready for review');
+      
+      // Refresh state to show updated status
+      setTimeout(() => {
+        refreshState();
+      }, 100);
+      
+      // Now open the sampling modal for review
+      setSamplingModalOpen(true);
+      
+    } catch (error) {
+      console.error('❌ Error in auto-generation:', error);
+      // Silent failure - just log, don't alert
+    } finally {
+      setIsAutoGenerating(false);
+    }
   };
 
   const getRiskRatingColor = (rating?: string) => {
@@ -248,24 +378,55 @@ export default function ControlDetailModal({
     ? originalDescription 
     : `Ensures ${displayTitle.toLowerCase()} are properly implemented and monitored within the organization's IT environment.`;
 
-  const tabs = [
-    { id: 'details', label: 'Details', icon: FileText },
-    { id: 'evidence', label: 'Evidence', icon: Upload },
-    { id: 'sampling', label: 'Sampling', icon: Target },
-    { id: 'notes', label: 'Notes', icon: Clock }
-  ];
+  // Role-based tab configuration
+  const getUserTabs = () => {
+    const userType = user?.userType || 'auditor';
+    
+    if (userType === 'auditor') {
+      return [
+        { id: 'details', label: 'Details', icon: FileText },
+        { id: 'evidence', label: 'Evidence', icon: Upload },
+        { id: 'sampling', label: 'Sampling', icon: Target },
+        { id: 'notes', label: 'Notes', icon: Clock }
+      ];
+    } else {
+      return [
+        { id: 'details', label: 'Details', icon: FileText },
+        { id: 'evidence', label: 'Evidence', icon: Upload },
+        { id: 'notes', label: 'Notes', icon: Clock }
+      ];
+    }
+  };
 
-  // Handle tab clicks with status checking
+  const tabs = getUserTabs();
+
+  // ✅ FIXED: Streamlined tab click handler
   const handleTabClick = (tabId: string) => {
+    const userType = user?.userType || 'auditor';
+    
     if (tabId === 'sampling') {
-      // Check if sampling is allowed based on current status
+      if (userType !== 'auditor') {
+        alert('Sampling configuration is only available to auditors.');
+        return;
+      }
+      
       const disallowedStatuses = ['Evidence Request Sent', 'Partial Evidence Submitted', 'All Evidence Submitted', 'Evidence Approved'];
       if (disallowedStatuses.includes(currentSamplingStatus)) {
-        // Show a message instead of opening modal
         alert(`Cannot modify sampling configuration. Current status: ${currentSamplingStatus}`);
         return;
       }
-      setSamplingModalOpen(true);
+      
+      // ✅ FIXED: Check if samples exist, if not, auto-generate silently
+      const existingConfig = samplingConfigs.find(c => c.controlId === editedControl.id);
+      const existingSamples = existingConfig ? generatedSamples.filter(s => s.samplingConfigId === existingConfig.id) : [];
+      
+      if (existingSamples.length === 0) {
+        // No samples exist, auto-generate silently then open for review
+        handleAutoGenerateSamples();
+      } else {
+        // Samples already exist, open modal for review
+        setSamplingModalOpen(true);
+      }
     } else if (tabId === 'evidence') {
       setEvidenceModalOpen(true);
     } else {
@@ -296,7 +457,6 @@ export default function ControlDetailModal({
                 {editedControl.frequency && (
                   <span>{editedControl.frequency}</span>
                 )}
-                {/* Show current sampling status */}
                 {currentSamplingStatus !== 'No Sampling Required' && (
                   <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
                     {currentSamplingStatus}
@@ -317,7 +477,6 @@ export default function ControlDetailModal({
             <nav className="flex space-x-8 px-4 sm:px-6" aria-label="Tabs">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
-                // Check if sampling tab should be disabled
                 const isDisabled = tab.id === 'sampling' && 
                   ['Evidence Request Sent', 'Partial Evidence Submitted', 'All Evidence Submitted', 'Evidence Approved'].includes(currentSamplingStatus);
                 
@@ -336,7 +495,6 @@ export default function ControlDetailModal({
                   >
                     <Icon className="w-4 h-4 mr-2" />
                     {tab.label}
-                    {/* Show lock icon for disabled sampling tab */}
                     {isDisabled && <span className="ml-1 text-xs">🔒</span>}
                   </button>
                 );
@@ -384,7 +542,6 @@ export default function ControlDetailModal({
                         </div>
                       </div>
 
-                      {/* Current fields from your existing structure */}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Assignee</label>
@@ -443,7 +600,6 @@ export default function ControlDetailModal({
                         <div className={`w-3 h-3 rounded-full mr-3 ${notes.trim() ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                         <span className="text-sm text-gray-700">Notes Added</span>
                       </div>
-                      {/* Show sampling status */}
                       <div className="flex items-center">
                         <div className={`w-3 h-3 rounded-full mr-3 ${currentSamplingStatus === 'Evidence Approved' ? 'bg-green-500' : currentSamplingStatus === 'No Sampling Required' ? 'bg-gray-300' : 'bg-yellow-500'}`}></div>
                         <span className="text-sm text-gray-700">Sampling: {currentSamplingStatus}</span>
@@ -456,34 +612,138 @@ export default function ControlDetailModal({
                     <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Quick Actions</h3>
                     
                     <div className="space-y-2">
-                      <button 
-                        onClick={() => handleInputChange('status', 'completed')}
-                        className="w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                      >
-                        Mark as Complete
-                      </button>
-                      <button 
-                        onClick={() => handleInputChange('status', 'needs-attention')}  
-                        className="w-full text-left p-2 text-sm text-yellow-600 hover:bg-yellow-50 rounded-md transition-colors"
-                      >
-                        Request Additional Evidence
-                      </button>
-                      <button 
-                        onClick={() => handleInputChange('priority', 'high')}
-                        className="w-full text-left p-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                      >
-                        Flag for Review
-                      </button>
+                      {user?.userType === 'auditor' ? (
+                        <>
+                          <button 
+                            onClick={() => handleInputChange('status', 'completed')}
+                            className="w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          >
+                            Mark as Complete
+                          </button>
+                          <button 
+                            onClick={() => handleInputChange('status', 'needs-attention')}  
+                            className="w-full text-left p-2 text-sm text-yellow-600 hover:bg-yellow-50 rounded-md transition-colors"
+                          >
+                            Request Additional Evidence
+                          </button>
+                          <button 
+                            onClick={() => handleInputChange('priority', 'high')}
+                            className="w-full text-left p-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          >
+                            Flag for Review
+                          </button>
+                          {/* ✅ FIXED: Silent sample generation button */}
+                          <button 
+                            onClick={handleAutoGenerateSamples}
+                            disabled={isAutoGenerating}
+                            className="w-full text-left p-2 text-sm text-purple-600 hover:bg-purple-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                          >
+                            {isAutoGenerating ? (
+                              <>
+                                <div className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-purple-600 mr-2"></div>
+                                Generating Samples...
+                              </>
+                            ) : (
+                              <>
+                                <Shuffle className="w-3 h-3 mr-2" />
+                                Configure Sampling
+                              </>
+                            )}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={() => setEvidenceModalOpen(true)}
+                            className="w-full text-left p-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                          >
+                            Upload Evidence
+                          </button>
+                          <button 
+                            onClick={() => setActiveTab('evidence')}
+                            className="w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          >
+                            View Evidence Requests
+                          </button>
+                          <button 
+                            onClick={() => setActiveTab('notes')}
+                            className="w-full text-left p-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+                          >
+                            Add Notes/Questions
+                          </button>
+                          <button 
+                            onClick={() => handleInputChange('status', 'in-progress')}
+                            className="w-full text-left p-2 text-sm text-orange-600 hover:bg-orange-50 rounded-md transition-colors"
+                          >
+                            Mark as In Progress
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
+            {activeTab === 'evidence' && (
+              <div className="max-w-4xl mx-auto">
+                {user?.userType === 'client' ? (
+                  <div className="space-y-6">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                      <h3 className="font-semibold text-green-900 mb-2 flex items-center">
+                        <Upload className="w-5 h-5 mr-2" />
+                        Evidence Upload Center
+                      </h3>
+                      <p className="text-green-800 text-sm">
+                        Upload the requested evidence for this control. If you have questions about what's needed, use the Notes tab to ask your audit team.
+                      </p>
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-lg p-6">
+                      <h4 className="font-semibold text-gray-900 mb-4">Additional Evidence Upload</h4>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
+                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-lg font-medium text-gray-700 mb-2">Drop files here or click to upload</p>
+                        <p className="text-sm text-gray-500 mb-4">Support for multiple file types: PDF, Word, Excel, Images</p>
+                        <input
+                          type="file"
+                          multiple
+                          onChange={handleEvidenceUpload}
+                          className="hidden"
+                          id="general-evidence-upload"
+                        />
+                        <label
+                          htmlFor="general-evidence-upload"
+                          className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer font-medium"
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Choose Files
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                      <h3 className="font-semibold text-blue-900 mb-2 flex items-center">
+                        <FileText className="w-5 h-5 mr-2" />
+                        Evidence Management Center
+                      </h3>
+                      <p className="text-blue-800 text-sm">
+                        Review submitted evidence, create new evidence requests, and track documentation status for this control.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'notes' && (
               <div className="max-w-3xl mx-auto">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {user?.userType === 'auditor' ? 'Audit Notes' : 'Questions & Comments'}
+                  </label>
                   <textarea
                     value={notes}
                     onChange={(e) => {
@@ -491,9 +751,21 @@ export default function ControlDetailModal({
                       setIsChanged(true);
                     }}
                     rows={8}
-                    placeholder="Add any notes about this control..."
+                    placeholder={
+                      user?.userType === 'auditor' 
+                        ? "Add any notes about this control..." 
+                        : "Add questions about this control or describe any issues with evidence requests..."
+                    }
                     className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   />
+                  
+                  <div className="mt-2 text-sm text-gray-500">
+                    {user?.userType === 'auditor' ? (
+                      <p>Document testing procedures, findings, and review notes for this control.</p>
+                    ) : (
+                      <p>Use this space to ask questions about evidence requests or document any challenges in providing requested materials.</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -517,29 +789,40 @@ export default function ControlDetailModal({
               >
                 Close
               </button>
-              <button
-                onClick={handleSave}
-                disabled={!isChanged}
-                className={`px-3 sm:px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-                  isChanged
-                    ? 'bg-blue-600 hover:bg-blue-700'
-                    : 'bg-gray-400 cursor-not-allowed'
-                }`}
-              >
-                Save Changes
-              </button>
+              {user?.userType === 'auditor' && (
+                <button
+                  onClick={handleSave}
+                  disabled={!isChanged}
+                  className={`px-3 sm:px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
+                    isChanged
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  Save Changes
+                </button>
+              )}
+              {user?.userType === 'client' && notes.trim() !== '' && (
+                <button
+                  onClick={handleSave}
+                  className="px-3 sm:px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                >
+                  Save Notes
+                </button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* NEW: Sampling Modal */}
+      {/* Sampling Modal */}
       <SamplingModal
         isOpen={samplingModalOpen}
         onClose={() => setSamplingModalOpen(false)}
         controlId={editedControl.id}
         controlDescription={controlDescription}
         auditPeriod={auditPeriod}
+        generatedSamples={generatedSamples}
         onSave={() => {
           console.log('Sampling configuration saved');
           setSamplingModalOpen(false);
@@ -552,17 +835,22 @@ export default function ControlDetailModal({
           setSamplingModalOpen(false);
           setEvidenceModalOpen(true);
         }}
+        // ✅ FIXED: Pass control data for auto-configuration
+        controlData={{
+          'Control frequency': editedControl.frequency || editedControl['control frequency'] || 'Annually',
+          'PwC risk rating (H/M/L)': editedControl.riskRating || editedControl['pwc risk rating (h/m/l)'] || 'M'
+        }}
       />
 
-      {/* FIXED: Evidence Modal with proper props */}
+      {/* Evidence Modal */}
       <EvidenceModal
         isOpen={evidenceModalOpen}
         onClose={() => setEvidenceModalOpen(false)}
         controlId={editedControl.id}
         controlDescription={controlDescription}
-        evidenceRequests={[]} // TODO: Connect to actual data
-        evidenceSubmissions={[]} // TODO: Connect to actual data
-        samples={[]} // TODO: Connect to actual data
+        evidenceRequests={[]}
+        evidenceSubmissions={[]}
+        samples={[]}
         onUpdateRequest={(requestId, updates) => {
           console.log('Evidence request updated:', requestId, updates);
         }}
