@@ -426,7 +426,7 @@ export const useAppState = () => {
       console.log('🔧 DEBUGGING: About to call refreshState() after long delay...');
       refreshState(); // ✅ FIXED: This will now load the saved data properly
       console.log('🔧 DEBUGGING: refreshState() completed');
-    }, 10000); // 3 seconds - plenty of time for auto-save effects to complete
+    }, 3000); // 3 seconds - plenty of time for auto-save effects to complete
 
     setSelectedAudit(newAudit);
     setCurrentView('audit-setup');
