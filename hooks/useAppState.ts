@@ -1,4 +1,4 @@
-// File: hooks/useAppState.ts - REFACTORED: Walkthrough Module Extracted
+// File: hooks/useAppState.ts - REFACTORED: Walkthrough Module Extracted - FIXED: Display Issue
 import { useState, useEffect } from 'react';
 import { 
   AuditFormData, 
@@ -340,7 +340,30 @@ export const useAppState = () => {
     localStorage.removeItem('current_user');
   };
 
-  // Enhanced audit submit with auto-classification + walkthrough extraction
+  // ✅ FIXED: Main state refresh function (what modal closes call)
+  const refreshState = () => {
+    console.log('🔄 Refreshing all state from localStorage...');
+    
+    setSamplingConfigs(loadFromStorage(STORAGE_KEYS.SAMPLING_CONFIGS, []));
+    setGeneratedSamples(loadFromStorage(STORAGE_KEYS.GENERATED_SAMPLES, []));
+    setEvidenceRequests(loadFromStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, []));
+    setEvidenceSubmissions(loadFromStorage(STORAGE_KEYS.EVIDENCE_SUBMISSIONS, []));
+    setControlClassifications(loadFromStorage(STORAGE_KEYS.CONTROL_CLASSIFICATIONS, []));
+    setSamplingAuditLogs(loadFromStorage(STORAGE_KEYS.SAMPLING_AUDIT_LOGS, []));
+    
+    // ✅ REFACTORED: Refresh walkthrough state
+    walkthroughModule.refreshWalkthroughState();
+    
+    const currentAuditData = loadFromStorage(STORAGE_KEYS.CURRENT_AUDIT, null);
+    if (currentAuditData) {
+      setSelectedAudit(currentAuditData.audit);
+      setExtractedData(currentAuditData.extractedData);
+    }
+    
+    console.log('✅ State refresh complete');
+  };
+
+  // Enhanced audit submit with auto-classification + walkthrough extraction + FIX
   const handleAuditSubmit = (formData: AuditFormData, excelData?: ExcelData) => {
     console.log('🎉 Creating new audit:', formData);
     console.log('📊 Excel data included:', excelData ? {
@@ -389,9 +412,13 @@ export const useAppState = () => {
       // ✅ REFACTORED: Extract walkthroughs using new module
       walkthroughModule.handleExtractWalkthroughsFromKeyReports(excelData, newAudit);
     }
-setTimeout(() => {
-  walkthroughModule.refreshWalkthroughState();
-}, 200);
+
+    // 🔧 FIX: Call the main refreshState() instead of just walkthrough refresh
+    // This triggers the three-state update just like modal closes do
+    setTimeout(() => {
+      refreshState(); // ✅ FIXED: This is the missing trigger!
+    }, 200);
+
     setSelectedAudit(newAudit);
     setCurrentView('audit-setup');
   };
@@ -929,28 +956,6 @@ setTimeout(() => {
     }
 
     return 'Ready for Evidence Request';
-  };
-
-  const refreshState = () => {
-    console.log('🔄 Refreshing all state from localStorage...');
-    
-    setSamplingConfigs(loadFromStorage(STORAGE_KEYS.SAMPLING_CONFIGS, []));
-    setGeneratedSamples(loadFromStorage(STORAGE_KEYS.GENERATED_SAMPLES, []));
-    setEvidenceRequests(loadFromStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, []));
-    setEvidenceSubmissions(loadFromStorage(STORAGE_KEYS.EVIDENCE_SUBMISSIONS, []));
-    setControlClassifications(loadFromStorage(STORAGE_KEYS.CONTROL_CLASSIFICATIONS, []));
-    setSamplingAuditLogs(loadFromStorage(STORAGE_KEYS.SAMPLING_AUDIT_LOGS, []));
-    
-    // ✅ REFACTORED: Refresh walkthrough state
-    walkthroughModule.refreshWalkthroughState();
-    
-    const currentAuditData = loadFromStorage(STORAGE_KEYS.CURRENT_AUDIT, null);
-    if (currentAuditData) {
-      setSelectedAudit(currentAuditData.audit);
-      setExtractedData(currentAuditData.extractedData);
-    }
-    
-    console.log('✅ State refresh complete');
   };
 
   return {
