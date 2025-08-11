@@ -228,42 +228,42 @@ export const useAppState = () => {
     setIsInitialized(true);
   }, []);
 
-  // Auto-save all sampling data to localStorage
+  // 🔧 FIXED: Auto-save all sampling data to localStorage - with proper checks
   useEffect(() => {
-    if (samplingConfigs.length > 0) {
+    if (isInitialized && samplingConfigs.length >= 0) {
       saveToStorage(STORAGE_KEYS.SAMPLING_CONFIGS, samplingConfigs);
     }
-  }, [samplingConfigs]);
+  }, [samplingConfigs, isInitialized]);
 
   useEffect(() => {
-    if (generatedSamples.length > 0) {
+    if (isInitialized && generatedSamples.length >= 0) {
       saveToStorage(STORAGE_KEYS.GENERATED_SAMPLES, generatedSamples);
     }
-  }, [generatedSamples]);
+  }, [generatedSamples, isInitialized]);
 
   useEffect(() => {
-    if (evidenceRequests.length > 0) {
+    if (isInitialized && evidenceRequests.length >= 0) {
       saveToStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, evidenceRequests);
     }
-  }, [evidenceRequests]);
+  }, [evidenceRequests, isInitialized]);
 
   useEffect(() => {
-    if (evidenceSubmissions.length > 0) {
+    if (isInitialized && evidenceSubmissions.length >= 0) {
       saveToStorage(STORAGE_KEYS.EVIDENCE_SUBMISSIONS, evidenceSubmissions);
     }
-  }, [evidenceSubmissions]);
+  }, [evidenceSubmissions, isInitialized]);
 
   useEffect(() => {
-    if (controlClassifications.length > 0) {
+    if (isInitialized && controlClassifications.length >= 0) {
       saveToStorage(STORAGE_KEYS.CONTROL_CLASSIFICATIONS, controlClassifications);
     }
-  }, [controlClassifications]);
+  }, [controlClassifications, isInitialized]);
 
   useEffect(() => {
-    if (samplingAuditLogs.length > 0) {
+    if (isInitialized && samplingAuditLogs.length >= 0) {
       saveToStorage(STORAGE_KEYS.SAMPLING_AUDIT_LOGS, samplingAuditLogs);
     }
-  }, [samplingAuditLogs]);
+  }, [samplingAuditLogs, isInitialized]);
 
   useEffect(() => {
     if (selectedAudit) {
