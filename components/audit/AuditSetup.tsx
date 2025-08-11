@@ -1,7 +1,7 @@
-// File: src/components/audit/AuditSetup.tsx - Dramatically Simplified!
+// File: components/audit/AuditSetup.tsx - FIXED: Walkthrough Display Issue
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile } from '../../src/components/audit/types';
 import { useAppState } from '../../hooks/useAppState';
 
@@ -69,6 +69,34 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     handleCompleteWalkthrough,
     refreshState
   } = useAppState();
+
+  // 🔧 FIX: Force re-render when walkthrough data loads from localStorage
+  useEffect(() => {
+    console.log('🚶‍♂️ AuditSetup: Walkthrough data updated', {
+      applications: walkthroughApplications?.length || 0,
+      requests: walkthroughRequests?.length || 0,
+      currentModule
+    });
+    
+    // Additional debug info for troubleshooting
+    if (walkthroughApplications && walkthroughApplications.length > 0) {
+      console.log('🚶‍♂️ AuditSetup: First few applications:', walkthroughApplications.slice(0, 3));
+    }
+    if (walkthroughRequests && walkthroughRequests.length > 0) {
+      console.log('🚶‍♂️ AuditSetup: First few requests:', walkthroughRequests.slice(0, 3));
+    }
+  }, [walkthroughApplications, walkthroughRequests, currentModule]);
+
+  // 🔧 FIX: Force re-render when switching to walkthroughs tab
+  useEffect(() => {
+    if (currentModule === 'walkthroughs') {
+      console.log('🚶‍♂️ AuditSetup: Switched to walkthroughs tab, refreshing data...');
+      // Small delay to ensure localStorage data is loaded
+      setTimeout(() => {
+        refreshState();
+      }, 50);
+    }
+  }, [currentModule, refreshState]);
 
   // Component state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -420,6 +448,10 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     endDate: selectedAudit?.endDate ? new Date(selectedAudit.endDate) : new Date('2025-12-31')
   };
 
+  // 🔧 FIX: Ensure we have current walkthrough data for rendering
+  const currentWalkthroughApplications = walkthroughApplications || [];
+  const currentWalkthroughRequests = walkthroughRequests || [];
+
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
@@ -433,7 +465,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         currentModule={currentModule}
         onModuleChange={onModuleChange}
         currentData={extractedData}
-        walkthroughApplications={walkthroughApplications || []}
+        walkthroughApplications={currentWalkthroughApplications}
       />
 
       {/* Main Content */}
@@ -443,15 +475,14 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
           <AuditDetails 
             currentModule={currentModule}
             user={user}
-            selectedAudit={selectedAudit}
           />
 
           {/* Tab Content */}
           <TabContentRenderer
             currentModule={currentModule}
             currentData={extractedData}
-            walkthroughApplications={walkthroughApplications || []}
-            walkthroughRequests={walkthroughRequests || []}
+            walkthroughApplications={currentWalkthroughApplications}
+            walkthroughRequests={currentWalkthroughRequests}
             user={user}
             uploadedFiles={uploadedFiles}
             isDragOver={isDragOver}
