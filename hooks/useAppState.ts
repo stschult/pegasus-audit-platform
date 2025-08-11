@@ -420,11 +420,13 @@ export const useAppState = () => {
       walkthroughModule.handleExtractWalkthroughsFromKeyReports(excelData, newAudit);
     }
 
-    // 🔧 FIX: Call the main refreshState() instead of just walkthrough refresh
-    // This triggers the three-state update just like modal closes do
+    // 🔧 FIX: Call refreshState after React state updates have completed
+    // Use setTimeout with a LONG delay for troubleshooting to ensure auto-save effects have run
     setTimeout(() => {
-      refreshState(); // ✅ FIXED: This is the missing trigger!
-    }, 200);
+      console.log('🔧 DEBUGGING: About to call refreshState() after long delay...');
+      refreshState(); // ✅ FIXED: This will now load the saved data properly
+      console.log('🔧 DEBUGGING: refreshState() completed');
+    }, 3000); // 3 seconds - plenty of time for auto-save effects to complete
 
     setSelectedAudit(newAudit);
     setCurrentView('audit-setup');
