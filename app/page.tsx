@@ -25,6 +25,8 @@ export default function Home() {
     currentModule,
     user,
     isInitialized,
+    walkthroughApplications,    // ADDED: Extract walkthrough data
+    walkthroughRequests,        // ADDED: Extract walkthrough data
     handleLogin,
     handleLogout,
     handleAuditSubmit,
@@ -226,6 +228,8 @@ export default function Home() {
             uploadedFiles={uploadedFiles}
             extractedData={extractedData}
             onFileUpload={handleFileUpload}
+            walkthroughApplications={walkthroughApplications}  // ADDED: Pass walkthrough data
+            walkthroughRequests={walkthroughRequests}          // ADDED: Pass walkthrough data
           />
         </div>
       )}
