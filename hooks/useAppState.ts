@@ -582,6 +582,11 @@ export const useAppState = () => {
       setSamplingConfigs(prev => [...prev, ...newSamplingConfigs]);
     }
     
+// 🔧 FIX: Save immediately, don't wait for useEffect
+saveToStorage(STORAGE_KEYS.CONTROL_CLASSIFICATIONS, classifications);
+saveToStorage(STORAGE_KEYS.SAMPLING_CONFIGS, [...samplingConfigs, ...newSamplingConfigs]);
+
+
     const auditLog: SamplingAuditLog = {
       id: `log-${Date.now()}`,
       samplingConfigId: 'auto-classification-frequency-based',
