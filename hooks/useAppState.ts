@@ -388,9 +388,10 @@ export const useAppState = () => {
       
       // ✅ REFACTORED: Extract walkthroughs using new module
       walkthroughModule.handleExtractWalkthroughsFromKeyReports(excelData, newAudit);
-      refreshState();
     }
-
+setTimeout(() => {
+  walkthroughModule.refreshWalkthroughState();
+}, 200);
     setSelectedAudit(newAudit);
     setCurrentView('audit-setup');
   };
