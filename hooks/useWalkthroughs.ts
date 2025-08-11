@@ -49,13 +49,22 @@ export const useWalkthroughs = (user: User | null, selectedAudit: Audit | null) 
   const [walkthroughRequests, setWalkthroughRequests] = useState<WalkthroughRequest[]>([]);
   const [walkthroughSessions, setWalkthroughSessions] = useState<WalkthroughSession[]>([]);
 
-  // ✅ Load walkthrough data from localStorage on mount AND when audit changes
-  useEffect(() => {
-    console.log('🔄 Loading walkthrough data from storage...');
-    setWalkthroughApplications(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []));
-    setWalkthroughRequests(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []));
-    setWalkthroughSessions(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []));
-  }, [selectedAudit?.id]); // 🔧 FIX: Added selectedAudit dependency
+  // Line ~44: Load walkthrough data from localStorage on mount AND when audit changes
+useEffect(() => {
+  // Skip loading if we have fresh data (non-empty arrays)
+  const currentApps = walkthroughApplications.length;
+  const currentReqs = walkthroughRequests.length;
+  
+  if (currentApps > 0 || currentReqs > 0) {
+    console.log('🔄 Skipping storage load - fresh data exists:', {apps: currentApps, requests: currentReqs});
+    return;
+  }
+  
+  console.log('🔄 Loading walkthrough data from storage...');
+  setWalkthroughApplications(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []));
+  setWalkthroughRequests(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []));
+  setWalkthroughSessions(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []));
+}, [selectedAudit?.id, walkthroughApplications.length, walkthroughRequests.length]);
 
   // ✅ Auto-save walkthrough data to localStorage - FIXED CONDITIONS
   useEffect(() => {
