@@ -418,6 +418,7 @@ export const useAppState = () => {
       
       // ✅ REFACTORED: Extract walkthroughs using new module
       walkthroughModule.handleExtractWalkthroughsFromKeyReports(excelData, newAudit);
+
     }
 
     // 🔧 FIX: Call refreshState after React state updates have completed
