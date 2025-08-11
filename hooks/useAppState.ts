@@ -228,39 +228,46 @@ export const useAppState = () => {
     setIsInitialized(true);
   }, []);
 
-  // 🔧 FIXED: Auto-save all sampling data to localStorage - with proper checks
+  // 🔧 FIXED: Auto-save all sampling data to localStorage - trigger when data changes
   useEffect(() => {
-    if (isInitialized && samplingConfigs.length >= 0) {
+    // Save immediately when data changes, but not during initial empty state load
+    if (samplingConfigs.length > 0 || 
+        (isInitialized && samplingConfigs.length === 0)) {
       saveToStorage(STORAGE_KEYS.SAMPLING_CONFIGS, samplingConfigs);
     }
   }, [samplingConfigs, isInitialized]);
 
   useEffect(() => {
-    if (isInitialized && generatedSamples.length >= 0) {
+    if (generatedSamples.length > 0 || 
+        (isInitialized && generatedSamples.length === 0)) {
       saveToStorage(STORAGE_KEYS.GENERATED_SAMPLES, generatedSamples);
     }
   }, [generatedSamples, isInitialized]);
 
   useEffect(() => {
-    if (isInitialized && evidenceRequests.length >= 0) {
+    if (evidenceRequests.length > 0 || 
+        (isInitialized && evidenceRequests.length === 0)) {
       saveToStorage(STORAGE_KEYS.EVIDENCE_REQUESTS, evidenceRequests);
     }
   }, [evidenceRequests, isInitialized]);
 
   useEffect(() => {
-    if (isInitialized && evidenceSubmissions.length >= 0) {
+    if (evidenceSubmissions.length > 0 || 
+        (isInitialized && evidenceSubmissions.length === 0)) {
       saveToStorage(STORAGE_KEYS.EVIDENCE_SUBMISSIONS, evidenceSubmissions);
     }
   }, [evidenceSubmissions, isInitialized]);
 
   useEffect(() => {
-    if (isInitialized && controlClassifications.length >= 0) {
+    if (controlClassifications.length > 0 || 
+        (isInitialized && controlClassifications.length === 0)) {
       saveToStorage(STORAGE_KEYS.CONTROL_CLASSIFICATIONS, controlClassifications);
     }
   }, [controlClassifications, isInitialized]);
 
   useEffect(() => {
-    if (isInitialized && samplingAuditLogs.length >= 0) {
+    if (samplingAuditLogs.length > 0 || 
+        (isInitialized && samplingAuditLogs.length === 0)) {
       saveToStorage(STORAGE_KEYS.SAMPLING_AUDIT_LOGS, samplingAuditLogs);
     }
   }, [samplingAuditLogs, isInitialized]);
