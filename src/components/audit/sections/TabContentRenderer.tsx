@@ -1,7 +1,7 @@
 // File: src/components/audit/sections/TabContentRenderer.tsx
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   CheckCircle, 
   FileText, 
@@ -15,6 +15,11 @@ import {
 } from 'lucide-react';
 import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile } from '../types';
 import { extractKeySystemsFromData } from '../utils/keySystemsExtractor';
+// ADD THIS IMPORT
+import { 
+  extractWalkthroughApplicationsFromKeyReports,
+  generateWalkthroughRequestsFromApplications 
+} from '../../../utils/audit/walkthroughHandlers';
 
 // Import tab components
 import OverviewTab from '../tabs/OverviewTab';
@@ -78,6 +83,41 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
   getShortDescriptionForParsing,
   getControlIcon
 }) => {
+
+  // ADD THIS USEEFFECT TO PROCESS WALKTHROUGH DATA WHEN EXCEL IS UPLOADED
+  useEffect(() => {
+    if (currentData?.keyReports && currentData.keyReports.length > 0) {
+      try {
+        console.log(`🔧 Extracting walkthrough applications from ${currentData.keyReports.length} key reports`);
+        
+        // Extract walkthrough applications using existing function
+        const applications = extractWalkthroughApplicationsFromKeyReports(
+          currentData.keyReports, 
+          'audit-' + Date.now(), // Generate audit ID
+          user?.id || 'user-' + Date.now() // Use user ID or generate one
+        );
+        console.log(`✅ Successfully extracted ${applications.length} walkthrough applications`);
+        
+        // Generate walkthrough requests using existing function
+        const requests = generateWalkthroughRequestsFromApplications(
+          applications, 
+          'audit-' + Date.now(), // Generate audit ID
+          user?.id || 'user-' + Date.now() // Use user ID or generate one
+        );
+        console.log(`✅ Generated ${requests.length} walkthrough requests`);
+        
+        // Save to localStorage (THIS IS WHAT WAS MISSING!)
+        localStorage.setItem('audit_walkthrough_applications', JSON.stringify(applications));
+        localStorage.setItem('audit_walkthrough_requests', JSON.stringify(requests));
+        
+        console.log(`💾 Saved ${applications.length} walkthrough applications to storage`);
+        console.log(`💾 Saved ${requests.length} walkthrough requests to storage`);
+        
+      } catch (error) {
+        console.error('❌ Error processing walkthrough data:', error);
+      }
+    }
+  }, [currentData?.keyReports, user?.id]);
   
   if (currentModule === 'overview') {
     return (
