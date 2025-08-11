@@ -415,17 +415,26 @@ useEffect(() => {
   // ✅ REFRESH FUNCTION - FIXED
   // ===================================================================
   const refreshWalkthroughState = () => {
-    console.log('🔄 Refreshing walkthrough state from localStorage...');
-    const applications = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []);
-    const requests = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []);
-    const sessions = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []);
-    
-    setWalkthroughApplications(applications);
-    setWalkthroughRequests(requests);
-    setWalkthroughSessions(sessions);
-    
-    console.log(`🔄 Refreshed walkthrough state: ${applications.length} apps, ${requests.length} requests, ${sessions.length} sessions`);
-  };
+  // Skip loading if we have fresh data (non-empty arrays)
+  const currentApps = walkthroughApplications.length;
+  const currentReqs = walkthroughRequests.length;
+  
+  if (currentApps > 0 || currentReqs > 0) {
+    console.log('🔄 Skipping refresh - fresh data exists:', {apps: currentApps, requests: currentReqs});
+    return;
+  }
+  
+  console.log('🔄 Refreshing walkthrough state from localStorage...');
+  const applications = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []);
+  const requests = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []);
+  const sessions = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []);
+  
+  setWalkthroughApplications(applications);
+  setWalkthroughRequests(requests);
+  setWalkthroughSessions(sessions);
+  
+  console.log(`🔄 Refreshed walkthrough state: ${applications.length} apps, ${requests.length} requests, ${sessions.length} sessions`);
+};
 
   return {
     // State
