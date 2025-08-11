@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile } from '../../src/components/audit/types';
+import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile, WalkthroughApplication, WalkthroughRequest } from '../../src/components/audit/types';
 import { useAppState } from '../../hooks/useAppState';
 
 // Import extracted components
@@ -38,6 +38,8 @@ interface AuditSetupProps {
   uploadedFiles: UploadedFile[];
   extractedData: ExcelData | null;
   onFileUpload: (files: FileList) => void;
+  walkthroughApplications: WalkthroughApplication[];  // FIXED: Back to original type
+  walkthroughRequests: WalkthroughRequest[];          // FIXED: Back to original type
 }
 
 const AuditSetup: React.FC<AuditSetupProps> = ({
@@ -47,17 +49,17 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
   onModuleChange,
   uploadedFiles,
   extractedData,
-  onFileUpload
+  onFileUpload,
+  walkthroughApplications,  // ADDED: Use as props instead of hook
+  walkthroughRequests       // ADDED: Use as props instead of hook
 }) => {
-  // Get current React state and handler functions
+  // Get current React state and handler functions (removed walkthrough data from here)
   const {
     evidenceRequests,
     evidenceSubmissions,
     samplingConfigs,
     generatedSamples,
     user,
-    walkthroughApplications,
-    walkthroughRequests,
     handleSamplingConfigSave,
     handleApproveSamples,
     handleCreateEvidenceRequest,
@@ -70,7 +72,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     refreshState
   } = useAppState();
 
-  // 🔧 FIX: Force re-render when walkthrough data loads from localStorage
+  // 🔧 FIX: Force re-render when walkthrough data loads from props
   useEffect(() => {
     console.log('🚶‍♂️ AuditSetup: Walkthrough data updated', {
       applications: walkthroughApplications?.length || 0,
@@ -448,7 +450,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     endDate: selectedAudit?.endDate ? new Date(selectedAudit.endDate) : new Date('2025-12-31')
   };
 
-  // 🔧 FIX: Ensure we have current walkthrough data for rendering
+  // 🔧 FIX: Use props directly (already validated)
   const currentWalkthroughApplications = walkthroughApplications || [];
   const currentWalkthroughRequests = walkthroughRequests || [];
 
