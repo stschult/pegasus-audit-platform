@@ -49,31 +49,26 @@ export const useWalkthroughs = (user: User | null, selectedAudit: Audit | null) 
   const [walkthroughRequests, setWalkthroughRequests] = useState<WalkthroughRequest[]>([]);
   const [walkthroughSessions, setWalkthroughSessions] = useState<WalkthroughSession[]>([]);
 
-  // ✅ Load walkthrough data from localStorage on mount
+  // ✅ Load walkthrough data from localStorage on mount AND when audit changes
   useEffect(() => {
+    console.log('🔄 Loading walkthrough data from storage...');
     setWalkthroughApplications(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []));
     setWalkthroughRequests(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []));
     setWalkthroughSessions(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []));
-  }, []);
+  }, [selectedAudit?.id]); // 🔧 FIX: Added selectedAudit dependency
 
-  // ✅ Auto-save walkthrough data to localStorage
+  // ✅ Auto-save walkthrough data to localStorage - FIXED CONDITIONS
   useEffect(() => {
-    if (walkthroughApplications.length > 0) {
-      saveToStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, walkthroughApplications);
-    }
-  }, [walkthroughApplications]);
+    saveToStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, walkthroughApplications);
+  }, [walkthroughApplications]); // 🔧 FIX: Removed length condition
 
   useEffect(() => {
-    if (walkthroughRequests.length > 0) {
-      saveToStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, walkthroughRequests);
-    }
-  }, [walkthroughRequests]);
+    saveToStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, walkthroughRequests);
+  }, [walkthroughRequests]); // 🔧 FIX: Removed length condition
 
   useEffect(() => {
-    if (walkthroughSessions.length > 0) {
-      saveToStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, walkthroughSessions);
-    }
-  }, [walkthroughSessions]);
+    saveToStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, walkthroughSessions);
+  }, [walkthroughSessions]); // 🔧 FIX: Removed length condition
 
   // ===================================================================
   // ✅ WALKTHROUGH DATA EXTRACTION
@@ -104,6 +99,12 @@ export const useWalkthroughs = (user: User | null, selectedAudit: Audit | null) 
       // 🔧 FIX: Replace instead of accumulate (like ITGCs, ITACs, Key Reports)
       setWalkthroughApplications(applications);  // Replace, don't accumulate
       setWalkthroughRequests(requests);         // Replace, don't accumulate
+      
+      // 🔧 FIX: Immediate save after state update (like other hooks)
+      setTimeout(() => {
+        saveToStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, applications);
+        saveToStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, requests);
+      }, 0);
       
       // Update audit metadata
       audit.walkthroughsExtracted = true;
@@ -286,21 +287,18 @@ export const useWalkthroughs = (user: User | null, selectedAudit: Audit | null) 
     return 'draft';
   };
 
-  //const getWalkthroughRequestsForAudit = (): WalkthroughRequest[] => {
-   // return walkthroughRequests.filter(r => r.auditId === selectedAudit?.id);
-//  };
+  const getWalkthroughRequestsForAudit = (): WalkthroughRequest[] => {
+    console.log('🔍 DEBUG - getWalkthroughRequestsForAudit called');
+    console.log('🔍 selectedAudit?.id:', selectedAudit?.id);
+    console.log('🔍 Total walkthroughRequests:', walkthroughRequests.length);
+    console.log('🔍 Walkthrough auditIds:', walkthroughRequests.map(r => r.auditId));
+    
+    const filtered = walkthroughRequests.filter(r => r.auditId === selectedAudit?.id);
+    console.log('🔍 Filtered walkthroughs for current audit:', filtered.length);
+    
+    return filtered;
+  };
 
-const getWalkthroughRequestsForAudit = (): WalkthroughRequest[] => {
-  console.log('🔍 DEBUG - getWalkthroughRequestsForAudit called');
-  console.log('🔍 selectedAudit?.id:', selectedAudit?.id);
-  console.log('🔍 Total walkthroughRequests:', walkthroughRequests.length);
-  console.log('🔍 Walkthrough auditIds:', walkthroughRequests.map(r => r.auditId));
-  
-  const filtered = walkthroughRequests.filter(r => r.auditId === selectedAudit?.id);
-  console.log('🔍 Filtered walkthroughs for current audit:', filtered.length);
-  
-  return filtered;
-};
   const getWalkthroughProgress = (): WalkthroughProgress => {
     const auditRequests = getWalkthroughRequestsForAudit();
     const total = auditRequests.length;
@@ -405,13 +403,19 @@ const getWalkthroughRequestsForAudit = (): WalkthroughRequest[] => {
   };
 
   // ===================================================================
-  // ✅ REFRESH FUNCTION
+  // ✅ REFRESH FUNCTION - FIXED
   // ===================================================================
   const refreshWalkthroughState = () => {
     console.log('🔄 Refreshing walkthrough state from localStorage...');
-    setWalkthroughApplications(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []));
-    setWalkthroughRequests(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []));
-    setWalkthroughSessions(loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []));
+    const applications = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []);
+    const requests = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []);
+    const sessions = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []);
+    
+    setWalkthroughApplications(applications);
+    setWalkthroughRequests(requests);
+    setWalkthroughSessions(sessions);
+    
+    console.log(`🔄 Refreshed walkthrough state: ${applications.length} apps, ${requests.length} requests, ${sessions.length} sessions`);
   };
 
   return {
