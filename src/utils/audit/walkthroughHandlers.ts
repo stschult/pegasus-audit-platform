@@ -5,6 +5,7 @@ import { WalkthroughSession, WalkthroughAttendee, ApplicationExtraction, getWalk
 
 /**
  * Extract unique applications from key reports for walkthrough scheduling
+ * Groups by application + business owner combinations
  */
 export const extractWalkthroughApplicationsFromKeyReports = (
   keyReports: ExtractedKeyReport[], 
@@ -18,27 +19,57 @@ export const extractWalkthroughApplicationsFromKeyReports = (
     return [];
   }
 
-  // Extract unique applications and their related topics
-  const applicationMap = new Map<string, string[]>();
+  // Group by application + business owner combinations
+  interface WalkthroughGroup {
+    application: string;
+    businessOwner: string;
+    reports: ExtractedKeyReport[];
+    topics: string[];
+  }
+
+  const groupMap = new Map<string, WalkthroughGroup>();
   
   keyReports.forEach((report, index) => {
-    // Look for application name in various possible fields
-    const application = report.name || 
+    // Extract application name from various possible fields
+    const application = report.application || 
+                       report.name || 
                        report.reportName || 
                        report.source || 
                        report.reportType || 
                        `Application ${index + 1}`;
     
-    const topic = report.description || report.name || 'General Control';
+    // Extract business owner - this is key for proper grouping
+    const businessOwner = (report as any).businessOwner || 
+                         report.owner || 
+                         (report as any).dataSource || 
+                         'Unknown Owner';
     
-    if (applicationMap.has(application)) {
+    // Create unique key for this app+owner combination
+    const groupKey = `${application}::${businessOwner}`;
+    
+    // Extract topic/description
+    const topic = report.description || 
+                  report.name || 
+                  report.reportName || 
+                  'General Control';
+    
+    if (groupMap.has(groupKey)) {
+      // Add to existing group
+      const group = groupMap.get(groupKey)!;
+      group.reports.push(report);
+      
       // Add topic if not already included
-      const existingTopics = applicationMap.get(application)!;
-      if (!existingTopics.includes(topic)) {
-        existingTopics.push(topic);
+      if (!group.topics.includes(topic)) {
+        group.topics.push(topic);
       }
     } else {
-      applicationMap.set(application, [topic]);
+      // Create new group
+      groupMap.set(groupKey, {
+        application,
+        businessOwner,
+        reports: [report],
+        topics: [topic]
+      });
     }
   });
 
@@ -46,20 +77,27 @@ export const extractWalkthroughApplicationsFromKeyReports = (
   const walkthroughSessions: WalkthroughSession[] = [];
   let sessionIndex = 0;
 
-  applicationMap.forEach((topics, application) => {
+  groupMap.forEach((group, groupKey) => {
     const session: WalkthroughSession = {
       id: `walkthrough-${auditId}-${sessionIndex++}`,
       auditId,
-      application,
-      relatedTopics: topics,
+      application: group.application,
+      relatedTopics: group.topics,
       status: 'not_scheduled',
-      duration: topics.length > 3 ? '2_hour' : '1_hour', // More topics = longer session
+      duration: group.topics.length > 3 ? '2_hour' : '1_hour', // More topics = longer session
       attendees: [
         {
           id: `attendee-${userId}`,
           name: 'Auditor',
           email: '',
           role: 'auditor',
+          required: true
+        },
+        {
+          id: `attendee-${group.businessOwner.replace(/\s+/g, '-').toLowerCase()}`,
+          name: group.businessOwner,
+          email: '',
+          role: 'application_owner',
           required: true
         }
       ],
@@ -72,8 +110,16 @@ export const extractWalkthroughApplicationsFromKeyReports = (
 
   console.log(`✅ Extracted ${walkthroughSessions.length} walkthrough sessions from ${keyReports.length} key reports`);
   
+  // Enhanced logging to show grouping
   walkthroughSessions.forEach(session => {
-    console.log(`📋 ${session.application}: ${session.relatedTopics.length} topics, ${session.duration}`);
+    const ownerName = session.attendees.find(a => a.role === 'application_owner')?.name || 'Unknown';
+    console.log(`📋 ${session.application} (${ownerName}): ${session.relatedTopics.length} topics, ${session.duration}`);
+  });
+
+  // Debug: Show grouping summary
+  console.log('🔍 Grouping Summary:');
+  groupMap.forEach((group, key) => {
+    console.log(`  📊 ${group.application} + ${group.businessOwner}: ${group.reports.length} reports, ${group.topics.length} unique topics`);
   });
 
   return walkthroughSessions;
@@ -144,7 +190,8 @@ export const debugWalkthroughData = () => {
   if (applicationsData) {
     const apps = JSON.parse(applicationsData);
     apps.forEach((app: WalkthroughSession, index: number) => {
-      console.log(`${index + 1}. ${app.application} (${app.relatedTopics.length} topics, ${app.duration})`);
+      const ownerName = app.attendees?.find(a => a.role === 'application_owner')?.name || 'Unknown';
+      console.log(`${index + 1}. ${app.application} (${ownerName}) - ${app.relatedTopics.length} topics, ${app.duration}`);
     });
   }
 };
