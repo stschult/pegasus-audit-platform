@@ -225,13 +225,13 @@ const WalkthroughsTab: React.FC<WalkthroughsTabProps> = ({
                   <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
                     {/* Risk Level Chip */}
                     <span className={`px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap font-inter ${
-                      walkthrough.riskLevel.toLowerCase() === 'high' 
+                      walkthrough.riskLevel?.toLowerCase() === 'high' 
                         ? 'bg-[#EF4444] text-white' 
-                        : walkthrough.riskLevel.toLowerCase() === 'medium'
+                        : walkthrough.riskLevel?.toLowerCase() === 'medium'
                         ? 'bg-[#F59E0B] text-white'
                         : 'bg-[#10B981] text-white'
                     }`}>
-                      {walkthrough.riskLevel.toUpperCase()}
+                      {walkthrough.riskLevel?.toUpperCase()}
                     </span>
                     
                     {/* Status badges with role-based display */}
