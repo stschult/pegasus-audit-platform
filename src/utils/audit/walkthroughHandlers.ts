@@ -82,6 +82,12 @@ export const extractWalkthroughApplicationsFromKeyReports = (
       id: `walkthrough-${auditId}-${sessionIndex++}`,
       auditId,
       application: group.application,
+      // Add UI-compatible fields
+      name: group.application,
+      owner: group.businessOwner,
+      description: group.topics.join('\n\n'),
+      riskLevel: 'medium', // Default risk level
+      category: 'Application Walkthrough',
       relatedTopics: group.topics,
       status: 'not_scheduled',
       duration: group.topics.length > 3 ? '2_hour' : '1_hour', // More topics = longer session
@@ -103,7 +109,7 @@ export const extractWalkthroughApplicationsFromKeyReports = (
       ],
       createdAt: new Date(),
       updatedAt: new Date()
-    };
+    } as any; // Type assertion to allow extra fields
     
     walkthroughSessions.push(session);
   });
