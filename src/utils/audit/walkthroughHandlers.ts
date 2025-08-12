@@ -25,6 +25,7 @@ export const extractWalkthroughApplicationsFromKeyReports = (
     businessOwner: string;
     reports: ExtractedKeyReport[];
     topics: string[];
+    fullDescriptions: string[]; // ADDED: Keep full descriptions
   }
 
   const groupMap = new Map<string, WalkthroughGroup>();
@@ -52,6 +53,11 @@ export const extractWalkthroughApplicationsFromKeyReports = (
                   report.name || 
                   report.reportName || 
                   'General Control';
+
+    // ADDED: Extract full description for rich display
+    const fullDescription = report.description || 
+                           (report as any).controlDescription ||
+                           `Business process walkthrough for ${report.name || 'this application'} with ${businessOwner}`;
     
     if (groupMap.has(groupKey)) {
       // Add to existing group
@@ -62,13 +68,19 @@ export const extractWalkthroughApplicationsFromKeyReports = (
       if (!group.topics.includes(topic)) {
         group.topics.push(topic);
       }
+      
+      // ADDED: Add full description
+      if (!group.fullDescriptions.includes(fullDescription)) {
+        group.fullDescriptions.push(fullDescription);
+      }
     } else {
       // Create new group
       groupMap.set(groupKey, {
         application,
         businessOwner,
         reports: [report],
-        topics: [topic]
+        topics: [topic],
+        fullDescriptions: [fullDescription] // ADDED: Track full descriptions
       });
     }
   });
@@ -78,6 +90,16 @@ export const extractWalkthroughApplicationsFromKeyReports = (
   let sessionIndex = 0;
 
   groupMap.forEach((group, groupKey) => {
+    // FIXED: Use your exact format - numbered reports with line spaces
+    let richDescription;
+    if (group.reports.length === 1) {
+      // Single report - just the description
+      richDescription = group.fullDescriptions[0];
+    } else {
+      // Multiple reports - numbered format with line spaces
+      richDescription = group.fullDescriptions.map((desc, i) => `${i + 1}. ${desc}`).join('\n\n');
+    }
+
     const session: WalkthroughSession = {
       id: `walkthrough-${auditId}-${sessionIndex++}`,
       auditId,
@@ -85,7 +107,7 @@ export const extractWalkthroughApplicationsFromKeyReports = (
       // Add UI-compatible fields
       name: group.application,
       owner: group.businessOwner,
-      description: group.topics.join('\n\n'),
+      description: richDescription, // FIXED: Use rich description instead of just topics
       riskLevel: 'medium', // Default risk level
       category: 'Application Walkthrough',
       relatedTopics: group.topics,
