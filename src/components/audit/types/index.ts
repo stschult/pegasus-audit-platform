@@ -273,6 +273,7 @@ export interface WalkthroughSession {
   requestId: string;
   applicationName: string;
   businessOwner: string;
+   description: string;
   
   // Session details
   actualDate: string;

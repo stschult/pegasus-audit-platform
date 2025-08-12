@@ -4,6 +4,7 @@ export interface WalkthroughSession {
   id: string;
   auditId: string;
   application: string; // Unique application name from Column G
+  description: string; // ✅ ADDED: Description field for UI display
   relatedTopics: string[]; // All topics/controls covered in this walkthrough
   scheduledDate?: Date;
   scheduledTime?: string; // "10:00 AM - 11:30 AM" or "2:00 PM - 4:00 PM"
