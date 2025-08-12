@@ -74,7 +74,8 @@ export const createWalkthroughSessions = (
     status: 'not_scheduled' as const,
     attendees: [], // Will be populated by client ITGC lead
     createdAt: new Date(),
-    updatedAt: new Date()
+    updatedAt: new Date(),
+    description: `Walkthrough session for ${app.application}`  // ADD THIS LINE
   }));
 };
 
