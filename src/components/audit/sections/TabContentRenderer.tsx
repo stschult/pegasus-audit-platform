@@ -182,6 +182,12 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
 
     if (relatedRequest) {
       switch (relatedRequest.status) {
+        case 'not_scheduled':
+          status = 'Ready to Send';
+          colorClass = 'bg-gray-100 text-gray-700';
+          borderClass = 'border-red-400 border-2'; // Red border - auditor action needed
+          icon = Clock;
+          break;
         case 'draft':
           status = 'Ready to Send';
           colorClass = 'bg-gray-100 text-gray-700';
@@ -213,10 +219,10 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
           icon = CheckSquare;
           break;
         default:
-          status = 'Meeting Request Sent';
-          colorClass = 'bg-blue-100 text-blue-700';
-          borderClass = 'border-gray-200';
-          icon = Send;
+          status = 'Ready to Send';
+          colorClass = 'bg-gray-100 text-gray-700';
+          borderClass = 'border-red-400 border-2'; // Red border - auditor action needed
+          icon = Clock;
       }
     } else {
       // No request found - this shouldn't happen if requests are created properly
