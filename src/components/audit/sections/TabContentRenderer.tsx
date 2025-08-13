@@ -270,7 +270,7 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
             onClick={() => {
               console.log('🚨 BULK SEND CLICKED - onBulkSendWalkthroughRequests called');
               console.log('🚨 BULK SEND - walkthroughRequests length:', walkthroughRequests?.length);
-              console.log('🚨 BULK SEND - draft requests:', walkthroughRequests?.filter(req => req.status === 'draft').length);
+              console.log('🚨 BULK SEND - not_scheduled requests:', walkthroughRequests?.filter(req => req.status === 'not_scheduled').length);
               onBulkSendWalkthroughRequests();
             }}
             className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
@@ -291,8 +291,8 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
               const statusInfo = getWalkthroughStatusInfo(walkthrough);
               const { relatedRequest } = statusInfo;
               
-              // 🚀 FIXED: Simplified show button logic
-              const showSendButton = relatedRequest && relatedRequest.status === 'draft';
+              // 🚀 FIXED: Simplified show button logic - check for correct status
+              const showSendButton = relatedRequest && relatedRequest.status === 'not_scheduled';
               
               // ⭐ DEBUG LOGS - Check what's happening with button logic ⭐
               console.log('🔧 BUTTON DEBUG:', {
