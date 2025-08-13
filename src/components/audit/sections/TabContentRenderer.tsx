@@ -87,6 +87,15 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
   getControlIcon
 }) => {
 
+  // ⭐ DEBUG: Check what currentModule is being passed ⭐
+  console.log('🔧 TabContentRenderer PROPS DEBUG:', {
+    currentModule: currentModule,
+    currentModuleType: typeof currentModule,
+    walkthroughAppsLength: walkthroughApplications?.length,
+    walkthroughReqsLength: walkthroughRequests?.length,
+    moduleEqualsWalkthroughs: currentModule === 'walkthroughs'
+  });
+
   // ADD THIS USEEFFECT TO PROCESS WALKTHROUGH DATA WHEN EXCEL IS UPLOADED
   useEffect(() => {
     console.log('🔍 useEffect triggered - currentData?.keyReports length:', currentData?.keyReports?.length);
