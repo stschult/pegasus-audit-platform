@@ -245,6 +245,14 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
   }
 
   if (currentModule === 'walkthroughs') {
+    console.log('🔧 WALKTHROUGHS MODULE DEBUG:', {
+      walkthroughApplicationsLength: walkthroughApplications?.length,
+      walkthroughRequestsLength: walkthroughRequests?.length,
+      hasApplications: !!(walkthroughApplications && walkthroughApplications.length > 0),
+      firstApp: walkthroughApplications?.[0],
+      firstRequest: walkthroughRequests?.[0]
+    });
+    
     return (
       <div>
         <div className="flex items-center justify-between mb-6">
