@@ -142,8 +142,8 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
     console.log('🔧 DEBUG getWalkthroughStatusInfo: Looking for walkthrough:', walkthrough.name);
     console.log('🔧 DEBUG Available requests:', walkthroughRequests?.map(req => ({
       id: req.id,
-      applicationName: req.applicationName,
-      businessOwner: req.businessOwner,
+      application: req.application,
+      owner: req.owner,
       status: req.status
     })));
     
@@ -152,10 +152,12 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
                          walkthrough.owner || 
                          'Unknown Owner';
     
-    // 🚀 FIXED: Use correct field names and match BOTH application name AND business owner
+    // 🚀 FIXED: Use correct field names from console logs
+    // Applications: walkthrough.name, walkthrough.owner  
+    // Requests: req.application, req.owner
     const relatedRequest = walkthroughRequests?.find(req => 
-      req.applicationName === walkthrough.name && 
-      req.businessOwner === businessOwner
+      req.application === walkthrough.name && 
+      req.owner === businessOwner
     );
 
     console.log('🔧 DEBUG Matching result:', {
@@ -342,16 +344,10 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
                           Send Request
                         </button>
                       ) : (
-                        <>
-                          <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
-                            <statusInfo.icon size={12} />
-                            <span className="truncate max-w-24">{statusInfo.status}</span>
-                          </div>
-                          {/* ⭐ DEBUG: Show why button is hidden ⭐ */}
-                          <div className="text-xs text-red-500 mt-1">
-                            DEBUG: showSendButton={showSendButton.toString()}
-                          </div>
-                        </>
+                        <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
+                          <statusInfo.icon size={12} />
+                          <span className="truncate max-w-24">{statusInfo.status}</span>
+                        </div>
                       )}
                     </div>
                   </div>
