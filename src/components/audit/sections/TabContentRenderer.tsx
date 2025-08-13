@@ -248,7 +248,12 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Walkthroughs ({walkthroughApplications?.length || 0})</h2>
           <button 
-            onClick={onBulkSendWalkthroughRequests}
+            onClick={() => {
+              console.log('🚨 BULK SEND CLICKED - onBulkSendWalkthroughRequests called');
+              console.log('🚨 BULK SEND - walkthroughRequests length:', walkthroughRequests?.length);
+              console.log('🚨 BULK SEND - draft requests:', walkthroughRequests?.filter(req => req.status === 'draft').length);
+              onBulkSendWalkthroughRequests();
+            }}
             className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
           >
             <Download className="h-4 w-4 mr-2" />
@@ -269,6 +274,20 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
               
               // 🚀 FIXED: Simplified show button logic
               const showSendButton = relatedRequest && relatedRequest.status === 'draft';
+              
+              // ⭐ DEBUG LOGS - Check what's happening with button logic ⭐
+              console.log('🔧 BUTTON DEBUG:', {
+                walkthroughName: walkthrough.name,
+                businessOwner: businessOwner,
+                relatedRequestExists: !!relatedRequest,
+                relatedRequestStatus: relatedRequest?.status,
+                showSendButton: showSendButton,
+                statusInfoStatus: statusInfo.status
+              });
+              
+              // ⭐ TEMPORARY: Force show buttons for testing ⭐
+              // Uncomment the line below to force show all buttons
+              // const showSendButton = true;
               
               console.log('🔧 FINAL DEBUG for walkthrough:', walkthrough.name, {
                 businessOwner,
@@ -309,7 +328,7 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent card click
-                            console.log('🚨 SEND BUTTON CLICKED for:', {
+                            console.log('🚨 INDIVIDUAL SEND BUTTON CLICKED for:', {
                               requestId: relatedRequest.id,
                               applicationName: walkthrough.name,
                               businessOwner: businessOwner
@@ -323,10 +342,16 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
                           Send Request
                         </button>
                       ) : (
-                        <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
-                          <statusInfo.icon size={12} />
-                          <span className="truncate max-w-24">{statusInfo.status}</span>
-                        </div>
+                        <>
+                          <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
+                            <statusInfo.icon size={12} />
+                            <span className="truncate max-w-24">{statusInfo.status}</span>
+                          </div>
+                          {/* ⭐ DEBUG: Show why button is hidden ⭐ */}
+                          <div className="text-xs text-red-500 mt-1">
+                            DEBUG: showSendButton={showSendButton.toString()}
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>
