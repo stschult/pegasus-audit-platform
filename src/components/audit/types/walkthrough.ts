@@ -9,7 +9,8 @@ export interface WalkthroughSession {
   scheduledDate?: Date;
   scheduledTime?: string; // "10:00 AM - 11:30 AM" or "2:00 PM - 4:00 PM"
   duration: '1_hour' | '2_hour'; // Standard blocks
-  status: 'not_scheduled' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'draft' | 'not_scheduled' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+  //status: 'not_scheduled' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   attendees: WalkthroughAttendee[];
   location?: string; // "Conference Room A", "Teams Meeting", etc.
   meetingLink?: string; // For virtual meetings

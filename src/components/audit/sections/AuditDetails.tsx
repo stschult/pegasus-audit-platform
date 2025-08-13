@@ -1,7 +1,7 @@
 // File: components/audit/sections/AuditDetails.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   Settings, 
@@ -75,6 +75,35 @@ const AuditDetails: React.FC<AuditDetailsProps> = ({
       ]
     }
   });
+
+  // ✅ FIX: Update audit details when selectedAudit changes
+  useEffect(() => {
+    if (selectedAudit) {
+      setAuditDetails({
+        company: selectedAudit.companyName || 'Unknown Company',
+        website: selectedAudit.website || '',
+        auditType: selectedAudit.auditType || 'Unknown Type',
+        startDate: selectedAudit.startDate || '',
+        endDate: selectedAudit.endDate || '',
+        auditFirm: {
+          name: 'Pegasus',
+          contacts: [
+            { role: 'Principle', name: selectedAudit.auditLead || 'Tom Cruise', email: 'tom@audit.com' },
+            { role: 'Lead Finance', name: 'Brad Pitt', email: 'brad@audit.com' },
+            { role: 'Lead ITGC', name: 'Erik Schultz', email: 'erik@audit.com' }
+          ]
+        },
+        client: {
+          name: selectedAudit.companyName || 'Unknown Company',
+          contacts: [
+            { role: 'Principle', name: selectedAudit.clientLead || 'Batman', email: 'batman@fluidigm.com' },
+            { role: 'Lead Finance', name: 'Superman', email: 'superman@fluidigm.com' },
+            { role: 'Lead ITGC', name: 'Robin', email: 'robin@fluidigm.com' }
+          ]
+        }
+      });
+    }
+  }, [selectedAudit]);
 
   // Only show on Overview tab for auditors
   if (currentModule !== 'overview' || user?.userType === 'client') {

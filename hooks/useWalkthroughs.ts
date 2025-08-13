@@ -1,4 +1,4 @@
-// hooks/useWalkthroughs.ts
+// hooks/useWalkthroughs.ts - FIXED: Single state update for bulk operations
 import { useState, useEffect } from 'react';
 import { 
   WalkthroughApplication,
@@ -172,17 +172,34 @@ useEffect(() => {
     console.log('✅ Updated walkthrough request:', requestId);
   };
 
+  // 🚀 FIXED: Single state update instead of async loop
   const handleSendWalkthroughRequests = (requestIds: string[]) => {
+    console.log(`🔧 FIXED handleSendWalkthroughRequests: Processing ${requestIds.length} requests in single update`);
+    console.log('🚨 handleSendWalkthroughRequests CALLED with:', requestIds);
+console.log('🚨 Current walkthroughRequests length:', walkthroughRequests.length);
+console.log('🚨 Current requests:', walkthroughRequests.map(r => ({id: r.id, status: r.status})));
+    const currentTime = new Date().toISOString();
     const updates = {
       status: WALKTHROUGH_STATUSES.SENT,
-      sentAt: new Date().toISOString()
+      sentAt: currentTime,
+      lastUpdatedAt: currentTime,
+      lastUpdatedBy: user?.email || 'system',
+      currentResponsibleParty: getResponsibleParty(WALKTHROUGH_STATUSES.SENT)
     };
     
-    requestIds.forEach(id => {
-      handleUpdateWalkthroughRequest(id, updates);
-    });
+    // 🚀 SINGLE STATE UPDATE - No more async loop race conditions
+    setWalkthroughRequests(prev => prev.map(req => {
+      if (requestIds.includes(req.id)) {
+        console.log(`🔧 Updating request ${req.id} from ${req.status} to ${updates.status}`);
+        return {
+          ...req,
+          ...updates
+        };
+      }
+      return req;
+    }));
     
-    console.log(`✅ Sent ${requestIds.length} walkthrough requests to client`);
+    console.log(`✅ Successfully sent ${requestIds.length} walkthrough requests to client in single update`);
   };
 
   // ===================================================================
@@ -242,7 +259,7 @@ useEffect(() => {
   };
 
   // ===================================================================
-  // ✅ BULK OPERATIONS
+  // ✅ BULK OPERATIONS - ALSO FIXED
   // ===================================================================
   const handleBulkWalkthroughAction = (
     requestIds: string[],
@@ -251,20 +268,51 @@ useEffect(() => {
   ) => {
     switch (action) {
       case 'send':
+        // 🚀 Now uses the fixed single-update function
         handleSendWalkthroughRequests(requestIds);
         break;
         
       case 'schedule':
-        // For bulk scheduling, apply same scheduling data to all
+        // 🔧 FIX: Single state update for bulk scheduling too
         if (batchData) {
-          requestIds.forEach(id => handleScheduleWalkthrough(id, batchData));
+          const currentTime = new Date().toISOString();
+          const scheduleUpdates = {
+            status: WALKTHROUGH_STATUSES.SCHEDULED,
+            scheduledAt: currentTime,
+            lastUpdatedAt: currentTime,
+            lastUpdatedBy: user?.email || 'system',
+            currentResponsibleParty: getResponsibleParty(WALKTHROUGH_STATUSES.SCHEDULED),
+            schedulingData: {
+              scheduledDate: batchData.date,
+              scheduledTime: batchData.time,
+              location: batchData.location,
+              attendees: batchData.attendees,
+              notes: batchData.notes,
+              clientContact: user?.email || 'client'
+            }
+          };
+          
+          setWalkthroughRequests(prev => prev.map(req => 
+            requestIds.includes(req.id) ? { ...req, ...scheduleUpdates } : req
+          ));
         }
         break;
         
       case 'complete':
-        // For bulk completion
+        // 🔧 FIX: Single state update for bulk completion too
         if (batchData) {
-          requestIds.forEach(id => handleCompleteWalkthrough(id, batchData));
+          const currentTime = new Date().toISOString();
+          const completeUpdates = {
+            status: WALKTHROUGH_STATUSES.COMPLETED,
+            completedAt: currentTime,
+            lastUpdatedAt: currentTime,
+            lastUpdatedBy: user?.email || 'system',
+            currentResponsibleParty: getResponsibleParty(WALKTHROUGH_STATUSES.COMPLETED)
+          };
+          
+          setWalkthroughRequests(prev => prev.map(req => 
+            requestIds.includes(req.id) ? { ...req, ...completeUpdates } : req
+          ));
         }
         break;
     }
@@ -415,16 +463,7 @@ useEffect(() => {
   // ✅ REFRESH FUNCTION - FIXED
   // ===================================================================
   const refreshWalkthroughState = () => {
-  // Skip loading if we have fresh data (non-empty arrays)
-  const currentApps = walkthroughApplications.length;
-  const currentReqs = walkthroughRequests.length;
-  
-  if (currentApps > 0 || currentReqs > 0) {
-    console.log('🔄 Skipping refresh - fresh data exists:', {apps: currentApps, requests: currentReqs});
-    return;
-  }
-  
-  console.log('🔄 Refreshing walkthrough state from localStorage...');
+  console.log('🔄 Force refreshing walkthrough state from localStorage...');
   const applications = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.APPLICATIONS, []);
   const requests = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.REQUESTS, []);
   const sessions = loadFromStorage(WALKTHROUGH_STORAGE_KEYS.SESSIONS, []);
@@ -433,7 +472,7 @@ useEffect(() => {
   setWalkthroughRequests(requests);
   setWalkthroughSessions(sessions);
   
-  console.log(`🔄 Refreshed walkthrough state: ${applications.length} apps, ${requests.length} requests, ${sessions.length} sessions`);
+  console.log(`🔄 Force refreshed walkthrough state: ${applications.length} apps, ${requests.length} requests, ${sessions.length} sessions`);
 };
 
   return {

@@ -11,7 +11,11 @@ import {
   Eye,
   Target,
   Activity,
-  Zap
+  Zap,
+  Calendar,
+  Clock,
+  Send,
+  CheckSquare
 } from 'lucide-react';
 import { ExcelData, ExtractedControl, ExtractedITAC, ExtractedKeyReport, UploadedFile } from '../types';
 import { extractKeySystemsFromData } from '../utils/keySystemsExtractor';
@@ -23,7 +27,6 @@ import {
 
 // Import tab components
 import OverviewTab from '../tabs/OverviewTab';
-import WalkthroughsTab from '../tabs/WalkthroughsTab';
 import KeySystemsTab from '../tabs/KeySystemsTab';
 
 interface TabContentRendererProps {
@@ -86,6 +89,19 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
 
   // ADD THIS USEEFFECT TO PROCESS WALKTHROUGH DATA WHEN EXCEL IS UPLOADED
   useEffect(() => {
+    console.log('🔍 useEffect triggered - currentData?.keyReports length:', currentData?.keyReports?.length);
+    console.log('🔍 user?.id:', user?.id);
+    
+    // CRITICAL: More robust guard - check if EITHER applications OR requests exist
+    const existingApplications = localStorage.getItem('audit_walkthrough_applications');
+    const existingRequests = localStorage.getItem('audit_walkthrough_requests');
+    if (existingApplications || existingRequests) {
+      console.log('✅ Walkthrough data already exists, skipping generation');
+      console.log('   - Applications exist:', !!existingApplications);
+      console.log('   - Requests exist:', !!existingRequests);
+      return;
+    }
+    
     if (currentData?.keyReports && currentData.keyReports.length > 0) {
       try {
         console.log(`🔧 Extracting walkthrough applications from ${currentData.keyReports.length} key reports`);
@@ -116,8 +132,97 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
       } catch (error) {
         console.error('❌ Error processing walkthrough data:', error);
       }
+    } else {
+      console.log('⏭️ No keyReports to process');
     }
   }, [currentData?.keyReports, user?.id]);
+
+  // 🔧 FIXED: Walkthrough status helper function with correct field matching
+  const getWalkthroughStatusInfo = (walkthrough: any) => {
+    console.log('🔧 DEBUG getWalkthroughStatusInfo: Looking for walkthrough:', walkthrough.name);
+    console.log('🔧 DEBUG Available requests:', walkthroughRequests?.map(req => ({
+      id: req.id,
+      applicationName: req.applicationName,
+      businessOwner: req.businessOwner,
+      status: req.status
+    })));
+    
+    // Extract business owner from walkthrough data
+    const businessOwner = walkthrough.attendees?.find(a => a.role === 'application_owner')?.name || 
+                         walkthrough.owner || 
+                         'Unknown Owner';
+    
+    // 🚀 FIXED: Use correct field names and match BOTH application name AND business owner
+    const relatedRequest = walkthroughRequests?.find(req => 
+      req.applicationName === walkthrough.name && 
+      req.businessOwner === businessOwner
+    );
+
+    console.log('🔧 DEBUG Matching result:', {
+      walkthroughName: walkthrough.name,
+      businessOwner: businessOwner,
+      foundRequest: relatedRequest ? { id: relatedRequest.id, status: relatedRequest.status } : null
+    });
+
+    let status = 'Meeting Request Sent';
+    let colorClass = 'bg-blue-100 text-blue-700';
+    let borderClass = 'border-gray-200';
+    let icon = Send;
+
+    if (relatedRequest) {
+      switch (relatedRequest.status) {
+        case 'draft':
+          status = 'Ready to Send';
+          colorClass = 'bg-gray-100 text-gray-700';
+          borderClass = 'border-red-400 border-2'; // Red border - auditor action needed
+          icon = Clock;
+          break;
+        case 'sent':
+          status = 'Meeting Request Sent';
+          colorClass = 'bg-blue-100 text-blue-700';
+          borderClass = 'border-gray-200'; // Normal border - waiting on client
+          icon = Send;
+          break;
+        case 'scheduled':
+          status = 'Meeting Scheduled';
+          colorClass = 'bg-purple-100 text-purple-700';
+          borderClass = 'border-gray-200'; // Normal border - scheduled
+          icon = Calendar;
+          break;
+        case 'in_progress':
+          status = 'Awaiting Follow-up Items';
+          colorClass = 'bg-orange-100 text-orange-700';
+          borderClass = 'border-gray-200'; // Normal border - waiting on client
+          icon = Clock;
+          break;
+        case 'completed':
+          status = 'Walkthrough Complete';
+          colorClass = 'bg-green-100 text-green-700';
+          borderClass = 'border-gray-200'; // Normal border - complete
+          icon = CheckSquare;
+          break;
+        default:
+          status = 'Meeting Request Sent';
+          colorClass = 'bg-blue-100 text-blue-700';
+          borderClass = 'border-gray-200';
+          icon = Send;
+      }
+    } else {
+      // No request found - this shouldn't happen if requests are created properly
+      status = 'Ready to Send';
+      colorClass = 'bg-gray-100 text-gray-700';
+      borderClass = 'border-red-400 border-2'; // Red border - auditor action needed
+      icon = Clock;
+    }
+
+    return {
+      status,
+      colorClass,
+      borderClass,
+      icon,
+      relatedRequest // 🚀 NEW: Return the request for use in button logic
+    };
+  };
   
   if (currentModule === 'overview') {
     return (
@@ -139,16 +244,115 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
 
   if (currentModule === 'walkthroughs') {
     return (
-      <WalkthroughsTab
-        walkthroughApplications={walkthroughApplications || []}
-        walkthroughRequests={walkthroughRequests || []}
-        user={user}
-        onBulkSendRequests={onBulkSendWalkthroughRequests}
-        onIndividualSendRequest={onIndividualSendRequest}
-        onOpenScheduling={onOpenScheduling}
-        onWalkthroughClick={onWalkthroughClick}
-        onOpenCompletion={onOpenCompletion}
-      />
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">Walkthroughs ({walkthroughApplications?.length || 0})</h2>
+          <button 
+            onClick={onBulkSendWalkthroughRequests}
+            className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Send All Requests
+          </button>
+        </div>
+
+        {walkthroughApplications && walkthroughApplications.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {walkthroughApplications.map((walkthrough, index) => {
+              const businessOwner = walkthrough.attendees?.find(a => a.role === 'application_owner')?.name || 
+                                   walkthrough.owner || 
+                                   'Unknown Owner';
+              
+              // 🚀 FIXED: Get status info which now includes the relatedRequest
+              const statusInfo = getWalkthroughStatusInfo(walkthrough);
+              const { relatedRequest } = statusInfo;
+              
+              // 🚀 FIXED: Simplified show button logic
+              const showSendButton = relatedRequest && relatedRequest.status === 'draft';
+              
+              console.log('🔧 FINAL DEBUG for walkthrough:', walkthrough.name, {
+                businessOwner,
+                relatedRequest: relatedRequest ? { id: relatedRequest.id, status: relatedRequest.status } : null,
+                showSendButton
+              });
+              
+              return (
+                <div
+                  key={walkthrough.id || index}
+                  onClick={() => onWalkthroughClick({
+                    id: walkthrough.id,
+                    name: walkthrough.name || walkthrough.application,
+                    description: walkthrough.description || 'Business process walkthrough',
+                    riskLevel: walkthrough.riskLevel || 'medium',
+                    owner: businessOwner,
+                    category: walkthrough.category || 'Application Walkthrough'
+                  })}
+                  className={`bg-orange-50 border rounded-lg p-6 cursor-pointer hover:shadow-lg hover:bg-orange-100 transition-all group overflow-hidden ${statusInfo.borderClass}`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors flex-shrink-0">
+                        <Activity className="h-5 w-5 text-orange-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 group-hover:text-orange-700 transition-colors truncate">
+                          {walkthrough.name || walkthrough.application || `Walkthrough ${index + 1}`}
+                        </h3>
+                        <p className="text-sm text-gray-500 truncate">{walkthrough.category || 'Application Walkthrough'}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getRiskLevelColor(walkthrough.riskLevel || 'medium')}`}>
+                        {(walkthrough.riskLevel || 'MEDIUM').toUpperCase()}
+                      </span>
+                      {showSendButton ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent card click
+                            console.log('🚨 SEND BUTTON CLICKED for:', {
+                              requestId: relatedRequest.id,
+                              applicationName: walkthrough.name,
+                              businessOwner: businessOwner
+                            });
+                            
+                            // 🚀 FIXED: Use the confirmed related request
+                            onIndividualSendRequest(relatedRequest.id, walkthrough.name || walkthrough.application);
+                          }}
+                          className="px-3 py-1 bg-red-500 text-white text-xs font-medium rounded-full hover:bg-red-600 transition-colors"
+                        >
+                          Send Request
+                        </button>
+                      ) : (
+                        <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusInfo.colorClass}`}>
+                          <statusInfo.icon size={12} />
+                          <span className="truncate max-w-24">{statusInfo.status}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                    {walkthrough.description || 'Business process walkthrough for application controls and procedures'}
+                  </p>
+                  
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
+                      <Target className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{businessOwner}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Walkthroughs Found</h3>
+            <p className="text-gray-600">Upload an Excel file to load walkthrough data</p>
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -218,10 +422,6 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
                     <div className="flex items-center space-x-1 text-gray-500">
                       <Target className="h-4 w-4" />
                       <span className="truncate">{control.controlObjective || 'Control Objective'}</span>
-                    </div>
-                    <div className="flex items-center space-x-1 text-blue-600 group-hover:text-blue-700 flex-shrink-0">
-                      <Eye className="h-4 w-4" />
-                      <span>View Details</span>
                     </div>
                   </div>
                 </div>
@@ -295,10 +495,6 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
                       <Activity className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">{report.frequency || 'As Needed'}</span>
                     </div>
-                    <div className="flex items-center space-x-1 text-green-600 group-hover:text-green-700 flex-shrink-0">
-                      <Eye className="h-4 w-4" />
-                      <span>View Details</span>
-                    </div>
                   </div>
                 </div>
               );
@@ -370,10 +566,6 @@ const TabContentRenderer: React.FC<TabContentRendererProps> = ({
                     <div className="flex items-center space-x-1 text-gray-500 flex-1 min-w-0">
                       <Zap className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">{itac.controlType || 'Automated'}</span>
-                    </div>
-                    <div className="flex items-center space-x-1 text-purple-600 group-hover:text-purple-700 flex-shrink-0">
-                      <Eye className="h-4 w-4" />
-                      <span>View Details</span>
                     </div>
                   </div>
                 </div>

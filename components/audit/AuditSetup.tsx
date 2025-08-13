@@ -1,4 +1,4 @@
-// File: components/audit/AuditSetup.tsx - FIXED: Walkthrough Display Issue
+// File: components/audit/AuditSetup.tsx - FIXED: Direct State Update for Walkthrough Status
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -38,8 +38,8 @@ interface AuditSetupProps {
   uploadedFiles: UploadedFile[];
   extractedData: ExcelData | null;
   onFileUpload: (files: FileList) => void;
-  walkthroughApplications: WalkthroughApplication[];  // FIXED: Back to original type
-  walkthroughRequests: WalkthroughRequest[];          // FIXED: Back to original type
+  walkthroughApplications: WalkthroughApplication[];
+  walkthroughRequests: WalkthroughRequest[];
 }
 
 const AuditSetup: React.FC<AuditSetupProps> = ({
@@ -50,9 +50,17 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
   uploadedFiles,
   extractedData,
   onFileUpload,
-  walkthroughApplications,  // ADDED: Use as props instead of hook
-  walkthroughRequests       // ADDED: Use as props instead of hook
+  walkthroughApplications,
+  walkthroughRequests
 }) => {
+  // 🔧 NEW: Local state management for walkthrough requests to bypass localStorage issues
+  const [localWalkthroughRequests, setLocalWalkthroughRequests] = useState<WalkthroughRequest[]>(walkthroughRequests);
+
+  // Update local state when props change (initial load or external updates)
+  useEffect(() => {
+    setLocalWalkthroughRequests(walkthroughRequests);
+  }, [walkthroughRequests]);
+
   // Get current React state and handler functions (removed walkthrough data from here)
   const {
     evidenceRequests,
@@ -77,6 +85,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     console.log('🚶‍♂️ AuditSetup: Walkthrough data updated', {
       applications: walkthroughApplications?.length || 0,
       requests: walkthroughRequests?.length || 0,
+      localRequests: localWalkthroughRequests?.length || 0,
       currentModule
     });
     
@@ -84,21 +93,20 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     if (walkthroughApplications && walkthroughApplications.length > 0) {
       console.log('🚶‍♂️ AuditSetup: First few applications:', walkthroughApplications.slice(0, 3));
     }
-    if (walkthroughRequests && walkthroughRequests.length > 0) {
-      console.log('🚶‍♂️ AuditSetup: First few requests:', walkthroughRequests.slice(0, 3));
+    if (localWalkthroughRequests && localWalkthroughRequests.length > 0) {
+      console.log('🚶‍♂️ AuditSetup: First few local requests:', localWalkthroughRequests.slice(0, 3));
     }
-  }, [walkthroughApplications, walkthroughRequests, currentModule]);
+  }, [walkthroughApplications, walkthroughRequests, localWalkthroughRequests, currentModule]);
 
-  // 🔧 FIX: Force re-render when switching to walkthroughs tab
+  
+  // 🔧 FIX: Remove infinite loop by removing refreshState from dependencies
   useEffect(() => {
     if (currentModule === 'walkthroughs') {
-      console.log('🚶‍♂️ AuditSetup: Switched to walkthroughs tab, refreshing data...');
-      // Small delay to ensure localStorage data is loaded
-      setTimeout(() => {
-        refreshState();
-      }, 50);
+      console.log('🚶‍♂️ AuditSetup: Switched to walkthroughs tab, data already available via props');
+      // Data is already passed via props, no need to refresh state
+      // The parent component handles data loading and passes it down
     }
-  }, [currentModule, refreshState]);
+  }, [currentModule]); // FIXED: Removed refreshState from dependencies
 
   // Component state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -333,7 +341,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
 
   // Walkthrough handlers
   const handleBulkSendWalkthroughRequests = () => {
-    const draftRequests = walkthroughRequests.filter(req => 
+    const draftRequests = localWalkthroughRequests.filter(req => 
       req.auditId === selectedAudit?.id && 
       req.status === 'draft'
     );
@@ -350,30 +358,75 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     );
     
     if (confirmed) {
+      // Update local state immediately
+      const updatedRequests = localWalkthroughRequests.map(req => {
+        if (requestIds.includes(req.id)) {
+          return {
+            ...req,
+            status: 'sent' as const,
+            sentAt: new Date().toISOString()
+          };
+        }
+        return req;
+      });
+      setLocalWalkthroughRequests(updatedRequests);
+      
+      // Also call the original handler for localStorage update (but local state takes precedence)
       handleSendWalkthroughRequests(requestIds);
       alert(`✅ Successfully sent ${draftRequests.length} walkthrough requests!`);
-      setTimeout(() => refreshState(), 100);
     }
   };
 
+  // 🔧 FIX: Enhanced individual send request with direct local state update
   const handleIndividualSendRequest = (requestId: string, applicationName: string) => {
     const confirmed = confirm(
       `Send walkthrough request for "${applicationName}" to the client?`
     );
     
     if (confirmed) {
+      console.log('🔧 Updating INDIVIDUAL request status locally:', { requestId, applicationName });
+      
+      // 🔧 DEBUG: Check state before update
+      console.log('🔧 DEBUG: Total requests before update:', localWalkthroughRequests.length);
+      console.log('🔧 DEBUG: Target request ID:', requestId);
+      console.log('🔧 DEBUG: Requests with draft status before:', localWalkthroughRequests.filter(r => r.status === 'draft').length);
+      console.log('🔧 DEBUG: Requests with sent status before:', localWalkthroughRequests.filter(r => r.status === 'sent').length);
+      
+      // 🚀 IMMEDIATE LOCAL STATE UPDATE - This bypasses localStorage persistence issues
+      const updatedRequests = localWalkthroughRequests.map(req => {
+        if (req.id === requestId) {
+          console.log('🔧 Found individual request to update:', req);
+          return {
+            ...req,
+            status: 'sent' as const,
+            sentAt: new Date().toISOString()
+          };
+        }
+        return req;
+      });
+      
+      // 🔧 DEBUG: Check state after update
+      console.log('🔧 DEBUG: Requests with draft status after:', updatedRequests.filter(r => r.status === 'draft').length);
+      console.log('🔧 DEBUG: Requests with sent status after:', updatedRequests.filter(r => r.status === 'sent').length);
+      console.log('🔧 DEBUG: Updated request details:', updatedRequests.find(r => r.id === requestId));
+      
+      console.log('🔧 Setting updated local requests for individual send:', updatedRequests.find(r => r.id === requestId));
+      setLocalWalkthroughRequests(updatedRequests);
+      
+      // 🔧 FIXED: Call individual update handler, NOT bulk send handler
       handleUpdateWalkthroughRequest(requestId, { 
         status: 'sent',
         sentAt: new Date().toISOString()
       });
       
       alert(`✅ Successfully sent walkthrough request for "${applicationName}"!`);
-      setTimeout(() => refreshState(), 100);
+      
+      // No need to dispatch storage event or refresh - local state handles UI update immediately
     }
   };
 
   const handleOpenScheduling = (application: any) => {
-    const relatedRequest = walkthroughRequests?.find(req => 
+    const relatedRequest = localWalkthroughRequests?.find(req => 
       req.applicationName === application.name && 
       req.businessOwner === application.owner &&
       req.status === 'sent'
@@ -390,6 +443,23 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
 
   const handleScheduleSubmission = (schedulingData: any) => {
     if (schedulingRequestId) {
+      // Update local state immediately
+      const updatedRequests = localWalkthroughRequests.map(req => {
+        if (req.id === schedulingRequestId) {
+          return {
+            ...req,
+            status: 'scheduled' as const,
+            scheduledDate: schedulingData.date,
+            scheduledTime: schedulingData.time,
+            meetingLink: schedulingData.meetingLink,
+            notes: schedulingData.notes
+          };
+        }
+        return req;
+      });
+      setLocalWalkthroughRequests(updatedRequests);
+      
+      // Also call the original handler
       handleScheduleWalkthrough(schedulingRequestId, schedulingData);
       
       alert(`✅ Walkthrough for "${schedulingApplication?.name}" has been scheduled!`);
@@ -397,8 +467,6 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
       setIsSchedulingModalOpen(false);
       setSchedulingApplication(null);
       setSchedulingRequestId(null);
-      
-      setTimeout(() => refreshState(), 100);
     }
   };
 
@@ -410,6 +478,22 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
 
   const handleCompletionSubmission = (completionData: any) => {
     if (completionRequest) {
+      // Update local state immediately
+      const updatedRequests = localWalkthroughRequests.map(req => {
+        if (req.id === completionRequest.id) {
+          return {
+            ...req,
+            status: 'completed' as const,
+            completedAt: new Date().toISOString(),
+            findings: completionData.findings,
+            recommendations: completionData.recommendations
+          };
+        }
+        return req;
+      });
+      setLocalWalkthroughRequests(updatedRequests);
+      
+      // Also call the original handler
       handleCompleteWalkthrough(completionRequest.id, completionData);
       
       alert(`✅ Walkthrough for "${completionApplication?.name}" has been completed!`);
@@ -417,8 +501,6 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
       setIsCompletionModalOpen(false);
       setCompletionApplication(null);
       setCompletionRequest(null);
-      
-      setTimeout(() => refreshState(), 100);
     }
   };
 
@@ -452,7 +534,6 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
 
   // 🔧 FIX: Use props directly (already validated)
   const currentWalkthroughApplications = walkthroughApplications || [];
-  const currentWalkthroughRequests = walkthroughRequests || [];
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -475,16 +556,17 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         <div className="space-y-8">
           {/* Audit Details Section */}
           <AuditDetails 
+            selectedAudit={selectedAudit}
             currentModule={currentModule}
             user={user}
           />
 
-          {/* Tab Content */}
+          {/* Tab Content - 🔧 FIXED: Pass local state instead of props */}
           <TabContentRenderer
             currentModule={currentModule}
             currentData={extractedData}
             walkthroughApplications={currentWalkthroughApplications}
-            walkthroughRequests={currentWalkthroughRequests}
+            walkthroughRequests={localWalkthroughRequests} // 🚀 KEY CHANGE: Use local state
             user={user}
             uploadedFiles={uploadedFiles}
             isDragOver={isDragOver}

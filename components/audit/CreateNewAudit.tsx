@@ -513,26 +513,29 @@ export default function CreateNewAudit({ onBack, onSubmit }: CreateNewAuditProps
   };
 
   const handleSubmit = () => {
-    if (!formData.companyName) {
-      alert('Please enter company name');
-      return;
-    }
-    
-    if (!formData.website) {
-      alert('Please enter website URL');
-      return;
-    }
-    
-    console.log('🎉 Submitting audit with extracted data:', {
-      formData,
-      hasExcelData: !!extractedData,
-      controlCount: extractedData?.controls.length || 0,
-      keyReportCount: extractedData?.keyReports.length || 0
-    });
-    
-    // Submit with Excel data so client gets pre-configured audit
-    onSubmit(formData, extractedData || undefined);
-  };
+  // Use current form state values
+  const currentFormData = { ...formData };
+  
+  if (!currentFormData.companyName) {
+    alert('Please enter company name');
+    return;
+  }
+  
+  if (!currentFormData.website) {
+    alert('Please enter website URL');
+    return;
+  }
+  
+  console.log('🎉 Submitting audit with extracted data:', {
+    formData: currentFormData,
+    hasExcelData: !!extractedData,
+    controlCount: extractedData?.controls.length || 0,
+    keyReportCount: extractedData?.keyReports.length || 0
+  });
+  
+  // Submit with Excel data so client gets pre-configured audit
+  onSubmit(currentFormData, extractedData || undefined);
+};
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
