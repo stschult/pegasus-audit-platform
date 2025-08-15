@@ -1,4 +1,4 @@
-// File: components/audit/sections/AuditHeader.tsx
+// File: src/components/audit/sections/AuditHeader.tsx - ENHANCED: Clickable Company Name
 'use client';
 
 import React from 'react';
@@ -20,18 +20,20 @@ interface AuditHeaderProps {
     createdAt: string;
   };
   onBack: () => void;
+  onCompanyClick?: () => void; // NEW: Handler for company name click
 }
 
 const AuditHeader: React.FC<AuditHeaderProps> = ({
   selectedAudit,
-  onBack
+  onBack,
+  onCompanyClick
 }) => {
   console.log('Debug dates:', { 
     startDate: selectedAudit.startDate, 
     endDate: selectedAudit.endDate 
   });
 
-  // ✅ NEW: Helper function to format dates nicely
+  // ✅ Helper function to format dates nicely
   const formatAuditDate = (dateString: string): string => {
     try {
       // Handle various date formats
@@ -92,10 +94,30 @@ const AuditHeader: React.FC<AuditHeaderProps> = ({
               <ArrowLeft className="h-5 w-5 text-gray-300" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-white">{selectedAudit.companyName}</h1>
-              <p className="text-sm text-gray-300">
-                {selectedAudit.auditType} • {selectedAudit.clientId} • {new Date(selectedAudit.startDate).getFullYear()}
-              </p>
+              {/* 🚀 NEW: Clickable company name */}
+              {onCompanyClick ? (
+                <button
+                  onClick={onCompanyClick}
+                  className="text-left group"
+                >
+                  <h1 className="text-2xl font-bold text-white group-hover:text-blue-300 transition-colors cursor-pointer">
+                    {selectedAudit.companyName}
+                  </h1>
+                  <p className="text-sm text-gray-300 group-hover:text-gray-200 transition-colors">
+                    {selectedAudit.auditType} • {selectedAudit.clientId} • {new Date(selectedAudit.startDate).getFullYear()}
+                    <span className="ml-2 text-xs text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                      Click for company details
+                    </span>
+                  </p>
+                </button>
+              ) : (
+                <div>
+                  <h1 className="text-2xl font-bold text-white">{selectedAudit.companyName}</h1>
+                  <p className="text-sm text-gray-300">
+                    {selectedAudit.auditType} • {selectedAudit.clientId} • {new Date(selectedAudit.startDate).getFullYear()}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center space-x-4">

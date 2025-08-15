@@ -104,11 +104,9 @@ const AuditDetails: React.FC<AuditDetailsProps> = ({
       });
     }
   }, [selectedAudit]);
-
-  // Only show on Overview tab for auditors
-  if (currentModule !== 'overview' || user?.userType === 'client') {
-    return null;
-  }
+  
+  // Audit details moved to company modal - no longer shown in tabs
+return null;
 
   const handleSaveAuditDetails = () => {
     console.log('Saving audit details:', auditDetails);

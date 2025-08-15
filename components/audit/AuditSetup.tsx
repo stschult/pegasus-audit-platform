@@ -1,4 +1,4 @@
-// File: components/audit/AuditSetup.tsx - FIXED: Direct State Update for Walkthrough Status
+// File: components/audit/AuditSetup.tsx - COMPLETE: Action Items, Company Modal, Enhanced Overview
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -16,6 +16,7 @@ import ClientSchedulingModal from './modals/ClientSchedulingModal';
 import WalkthroughCompletionModal from './modals/WalkthroughCompletionModal';
 import ControlDetailModal from './ControlDetailModal';
 import WalkthroughDetailModal from './WalkthroughDetailModal';
+import CompanyDetailsModal from './modals/CompanyDetailsModal';
 
 interface AuditSetupProps {
   selectedAudit: {
@@ -53,7 +54,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
   walkthroughApplications,
   walkthroughRequests
 }) => {
-  // 🔧 NEW: Local state management for walkthrough requests to bypass localStorage issues
+  // 🔧 Local state management for walkthrough requests to bypass localStorage issues
   const [localWalkthroughRequests, setLocalWalkthroughRequests] = useState<WalkthroughRequest[]>(walkthroughRequests);
 
   // Update local state when props change (initial load or external updates)
@@ -61,7 +62,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     setLocalWalkthroughRequests(walkthroughRequests);
   }, [walkthroughRequests]);
 
-  // Get current React state and handler functions (removed walkthrough data from here)
+  // Get current React state and handler functions
   const {
     evidenceRequests,
     evidenceSubmissions,
@@ -80,7 +81,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     refreshState
   } = useAppState();
 
-  // 🔧 FIX: Force re-render when walkthrough data loads from props
+  // 🔧 Force re-render when walkthrough data loads from props
   useEffect(() => {
     console.log('🚶‍♂️ AuditSetup: Walkthrough data updated', {
       applications: walkthroughApplications?.length || 0,
@@ -99,7 +100,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
   }, [walkthroughApplications, walkthroughRequests, localWalkthroughRequests, currentModule]);
 
   
-  // 🔧 FIX: Remove infinite loop by removing refreshState from dependencies
+  // 🔧 Remove infinite loop by removing refreshState from dependencies
   useEffect(() => {
     if (currentModule === 'walkthroughs') {
       console.log('🚶‍♂️ AuditSetup: Switched to walkthroughs tab, data already available via props');
@@ -119,6 +120,12 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
   const [isITACModalOpen, setIsITACModalOpen] = useState(false);
   const [isKeyReportModalOpen, setIsKeyReportModalOpen] = useState(false);
   const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
+  
+  // 🚀 NEW: Modal tab state for direct navigation
+  const [modalActiveTab, setModalActiveTab] = useState<'details' | 'evidence' | 'sampling' | 'notes'>('details');
+  
+  // 🚀 NEW: Company details modal state
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   
   // Client scheduling modal state
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
@@ -185,25 +192,27 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     return words || 'System Control';
   };
 
+  // 🚀 UPDATED: Enhanced client-friendly status mapping for ITGC evidence flow
   const getClientFriendlyStatus = (technicalStatus: string): string => {
     const statusMap: { [key: string]: string } = {
       'No Sampling Required': 'Complete ✓',
-      'Needs Sampling': 'Being Configured',
-      'Sampling Configured': 'Being Prepared',
-      'Samples Generated': 'Being Prepared', 
-      'Ready for Evidence Request': 'Being Prepared',
-      'Evidence Request Sent': 'Action Required - Upload Evidence',
-      'Partial Evidence Submitted': 'Partially Complete - More Evidence Needed',
+      'Needs Sampling': 'Awaiting Sample Dates',
+      'Sampling Configured': 'Awaiting Sample Dates', 
+      'Samples Generated': 'Sample Dates Received',
+      'Ready for Evidence Request': 'Sample Dates Received',
+      'Evidence Request Sent': 'Sample Dates Received',
+      'Partial Evidence Submitted': 'Under Auditor Review',
       'All Evidence Submitted': 'Under Auditor Review',
-      'Evidence Followup Required': 'Action Required - Follow Up Needed',
+      'Evidence Followup Required': 'Sample Dates Received',
       'Evidence Approved': 'Complete ✓'
     };
 
     return statusMap[technicalStatus] || technicalStatus;
   };
 
+  // 🚀 UPDATED: Enhanced sampling status with sample dates info for clients
   const getSamplingStatusInfo = (controlId: string) => {
-    const technicalStatus = getSamplingStatusForControl(controlId, evidenceRequests, evidenceSubmissions);
+    const technicalStatus = getSamplingStatusForControl(controlId);
     const userType = user?.userType || 'auditor';
     
     const displayStatus = userType === 'client' ? getClientFriendlyStatus(technicalStatus) : technicalStatus;
@@ -220,12 +229,9 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
       'Evidence Followup Required': 'bg-red-100 text-red-700',
       'Evidence Approved': 'bg-green-100 text-green-700',
       'Complete ✓': 'bg-green-100 text-green-700',
-      'Being Configured': 'bg-blue-100 text-blue-700',
-      'Being Prepared': 'bg-blue-100 text-blue-700',
-      'Action Required - Upload Evidence': 'bg-red-100 text-red-700',
-      'Partially Complete - More Evidence Needed': 'bg-orange-100 text-orange-700',
-      'Under Auditor Review': 'bg-blue-100 text-blue-700',
-      'Action Required - Follow Up Needed': 'bg-red-100 text-red-700'
+      'Awaiting Sample Dates': 'bg-blue-100 text-blue-700',
+      'Sample Dates Received': 'bg-red-100 text-red-700',
+      'Under Auditor Review': 'bg-blue-100 text-blue-700'
     };
     
     const colorClass = statusColors[displayStatus] || 'bg-gray-100 text-gray-600';
@@ -245,12 +251,20 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
       borderClass = needsAction ? 'border-red-400 border-2' : 'border-gray-200';
     } else {
       const clientActionRequired = [
-        'Action Required - Upload Evidence',
-        'Action Required - Follow Up Needed',
-        'Partially Complete - More Evidence Needed'
+        'Sample Dates Received'
       ];
       needsAction = clientActionRequired.includes(displayStatus);
       borderClass = needsAction ? 'border-red-400 border-2' : 'border-gray-200';
+    }
+
+    // 🚀 Get sample dates for clients
+    let sampleDates: string[] = [];
+    if (userType === 'client' && displayStatus === 'Sample Dates Received') {
+      const samplingConfig = samplingConfigs.find(config => config.controlId === controlId);
+      if (samplingConfig) {
+        const controlSamples = generatedSamples.filter(sample => sample.samplingConfigId === samplingConfig.id);
+        sampleDates = controlSamples.map(sample => sample.sampleDate).sort();
+      }
     }
     
     return {
@@ -258,7 +272,8 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
       technicalStatus,
       needsAction,
       colorClass,
-      borderClass
+      borderClass,
+      sampleDates // 🚀 Include sample dates for client display
     };
   };
 
@@ -281,6 +296,167 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
       case 'medium': return 'text-yellow-600 bg-yellow-100';
       case 'low': return 'text-green-600 bg-green-100';
       default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  // 🚀 NEW: Check if Overview tab should pulse (has action items)
+  const hasActionItems = () => {
+    // Check ITGCs
+    if (extractedData?.controls) {
+      const controlsWithActions = extractedData.controls.filter(control => {
+        const statusInfo = getSamplingStatusInfo(control.id);
+        return statusInfo.needsAction;
+      });
+      if (controlsWithActions.length > 0) return true;
+    }
+
+    // Check Key Reports
+    if (extractedData?.keyReports) {
+      const reportsWithActions = extractedData.keyReports.filter(report => {
+        const statusInfo = getSamplingStatusInfo(report.id);
+        return statusInfo.needsAction;
+      });
+      if (reportsWithActions.length > 0) return true;
+    }
+
+    // Check ITACs
+    if (extractedData?.itacs) {
+      const itacsWithActions = extractedData.itacs.filter(itac => {
+        const statusInfo = getSamplingStatusInfo(itac.id);
+        return statusInfo.needsAction;
+      });
+      if (itacsWithActions.length > 0) return true;
+    }
+
+    // Check Walkthroughs
+    if (walkthroughApplications) {
+      const walkthroughsWithActions = walkthroughApplications.filter(walkthrough => {
+        const businessOwner = walkthrough.attendees?.find(a => a.role === 'application_owner')?.name || 
+                             walkthrough.owner || 
+                             'Unknown Owner';
+        
+        const relatedRequest = localWalkthroughRequests?.find(req => 
+          req.application === walkthrough.name && 
+          req.owner === businessOwner
+        );
+
+        if (relatedRequest) {
+          const auditorActionRequired = ['not_scheduled', 'draft'];
+          const clientActionRequired = ['sent'];
+          
+          if (user?.userType === 'auditor' && auditorActionRequired.includes(relatedRequest.status)) {
+            return true;
+          } else if (user?.userType === 'client' && clientActionRequired.includes(relatedRequest.status)) {
+            return true;
+          }
+        } else if (user?.userType === 'auditor') {
+          return true; // No request exists, auditor needs to create one
+        }
+        return false;
+      });
+      if (walkthroughsWithActions.length > 0) return true;
+    }
+
+    return false;
+  };
+
+  // 🚀 NEW: Next Action Handlers
+  const handleSamplingConfigure = (controlId: string) => {
+    console.log('🔧 Configure Sampling for control:', controlId);
+    
+    // Find the control from extracted data
+    const control = extractedData?.controls?.find(c => c.id === controlId) ||
+                   extractedData?.keyReports?.find(r => r.id === controlId) ||
+                   extractedData?.itacs?.find(i => i.id === controlId);
+    
+    if (control) {
+      setSelectedControl(control as ExtractedControl);
+      setModalActiveTab('sampling'); // Open directly to sampling tab
+      setIsControlModalOpen(true);
+    } else {
+      alert('Control not found. Please try again.');
+    }
+  };
+
+  const handleGenerateSamples = async (controlId: string) => {
+    console.log('🔧 Generate Samples for control:', controlId);
+    
+    try {
+      // Get the sampling configuration for this control
+      const samplingConfig = samplingConfigs.find(config => config.controlId === controlId);
+      
+      if (!samplingConfig) {
+        alert('No sampling configuration found. Please configure sampling first.');
+        return;
+      }
+      
+      // Get audit period
+      const auditPeriod = {
+        startDate: selectedAudit?.startDate ? new Date(selectedAudit.startDate) : new Date('2025-01-01'),
+        endDate: selectedAudit?.endDate ? new Date(selectedAudit.endDate) : new Date('2025-12-31')
+      };
+      
+      // Call the approve samples handler (which generates the samples)
+      await handleApproveSamples(samplingConfig.id);
+      
+      // Refresh state to show updated status
+      refreshState();
+      
+      alert('✅ Samples generated successfully!');
+      
+    } catch (error) {
+      console.error('Error generating samples:', error);
+      alert('❌ Failed to generate samples. Please try again.');
+    }
+  };
+
+  const handleSendEvidenceRequest = async (controlId: string) => {
+    console.log('🔧 Send Evidence Request for control:', controlId);
+    
+    try {
+      // Get the sampling configuration for this control
+      const samplingConfig = samplingConfigs.find(config => config.controlId === controlId);
+      
+      if (!samplingConfig) {
+        alert('No sampling configuration found. Please configure sampling first.');
+        return;
+      }
+      
+      // Call the create evidence request handler
+      // First get the evidence request object, then call the function
+const evidenceRequest = evidenceRequests.find(req => req.samplingConfigId === samplingConfig.id);
+if (evidenceRequest) {
+  await handleCreateEvidenceRequest(evidenceRequest);
+} else {
+  alert('No evidence request found for this control.');
+  return;
+}
+      
+      // Refresh state to show updated status
+      refreshState();
+      
+      alert('✅ Evidence request sent to client!');
+      
+    } catch (error) {
+      console.error('Error sending evidence request:', error);
+      alert('❌ Failed to send evidence request. Please try again.');
+    }
+  };
+
+  const handleReviewEvidence = (controlId: string) => {
+    console.log('🔧 Review Evidence for control:', controlId);
+    
+    // Find the control from extracted data
+    const control = extractedData?.controls?.find(c => c.id === controlId) ||
+                   extractedData?.keyReports?.find(r => r.id === controlId) ||
+                   extractedData?.itacs?.find(i => i.id === controlId);
+    
+    if (control) {
+      setSelectedControl(control as ExtractedControl);
+      setModalActiveTab('evidence'); // Open directly to evidence tab
+      setIsControlModalOpen(true);
+    } else {
+      alert('Control not found. Please try again.');
     }
   };
 
@@ -309,16 +485,19 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
 
   const handleControlClick = (control: ExtractedControl) => {
     setSelectedControl(control);
+    setModalActiveTab('details'); // Reset to details tab for normal clicks
     setIsControlModalOpen(true);
   };
 
   const handleITACClick = (itac: ExtractedITAC) => {
     setSelectedITAC(itac);
+    setModalActiveTab('details'); // Reset to details tab for normal clicks
     setIsITACModalOpen(true);
   };
 
   const handleKeyReportClick = (keyReport: ExtractedKeyReport) => {
     setSelectedKeyReport(keyReport);
+    setModalActiveTab('details'); // Reset to details tab for normal clicks
     setIsKeyReportModalOpen(true);
   };
 
@@ -337,6 +516,11 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
 
   const handleEvidenceUpload = (controlId: string, files: File[]) => {
     console.log('Uploading evidence for control:', controlId, files);
+  };
+
+  // 🚀 NEW: Company click handler
+  const handleCompanyClick = () => {
+    setIsCompanyModalOpen(true);
   };
 
   // Walkthrough handlers
@@ -377,20 +561,16 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     }
   };
 
-  // 🔧 FIX: Enhanced individual send request with direct local state update
+  // Enhanced individual send request with direct local state update
   const handleIndividualSendRequest = (requestId: string, applicationName: string) => {
+    console.log('🚨 AuditSetup handleIndividualSendRequest CALLED with:', requestId, applicationName);
+    
     const confirmed = confirm(
       `Send walkthrough request for "${applicationName}" to the client?`
     );
     
     if (confirmed) {
       console.log('🔧 Updating INDIVIDUAL request status locally:', { requestId, applicationName });
-      
-      // 🔧 DEBUG: Check state before update
-      console.log('🔧 DEBUG: Total requests before update:', localWalkthroughRequests.length);
-      console.log('🔧 DEBUG: Target request ID:', requestId);
-      console.log('🔧 DEBUG: Requests with draft status before:', localWalkthroughRequests.filter(r => r.status === 'draft').length);
-      console.log('🔧 DEBUG: Requests with sent status before:', localWalkthroughRequests.filter(r => r.status === 'sent').length);
       
       // 🚀 IMMEDIATE LOCAL STATE UPDATE - This bypasses localStorage persistence issues
       const updatedRequests = localWalkthroughRequests.map(req => {
@@ -405,23 +585,16 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         return req;
       });
       
-      // 🔧 DEBUG: Check state after update
-      console.log('🔧 DEBUG: Requests with draft status after:', updatedRequests.filter(r => r.status === 'draft').length);
-      console.log('🔧 DEBUG: Requests with sent status after:', updatedRequests.filter(r => r.status === 'sent').length);
-      console.log('🔧 DEBUG: Updated request details:', updatedRequests.find(r => r.id === requestId));
-      
       console.log('🔧 Setting updated local requests for individual send:', updatedRequests.find(r => r.id === requestId));
       setLocalWalkthroughRequests(updatedRequests);
       
-      // 🔧 FIXED: Call individual update handler, NOT bulk send handler
+      // Call individual update handler, NOT bulk send handler
       handleUpdateWalkthroughRequest(requestId, { 
         status: 'sent',
         sentAt: new Date().toISOString()
       });
       
       alert(`✅ Successfully sent walkthrough request for "${applicationName}"!`);
-      
-      // No need to dispatch storage event or refresh - local state handles UI update immediately
     }
   };
 
@@ -509,6 +682,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     refreshState();
     setIsControlModalOpen(false);
     setSelectedControl(null);
+    setModalActiveTab('details'); // Reset tab state
     setTimeout(() => refreshState(), 100);
   };
 
@@ -516,6 +690,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     refreshState();
     setIsITACModalOpen(false);
     setSelectedITAC(null);
+    setModalActiveTab('details'); // Reset tab state
     setTimeout(() => refreshState(), 100);
   };
 
@@ -523,6 +698,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     refreshState();
     setIsKeyReportModalOpen(false);
     setSelectedKeyReport(null);
+    setModalActiveTab('details'); // Reset tab state
     setTimeout(() => refreshState(), 100);
   };
 
@@ -532,15 +708,32 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
     endDate: selectedAudit?.endDate ? new Date(selectedAudit.endDate) : new Date('2025-12-31')
   };
 
-  // 🔧 FIX: Use props directly (already validated)
+  // Use props directly (already validated)
   const currentWalkthroughApplications = walkthroughApplications || [];
 
   return (
     <div className="min-h-screen bg-gray-900">
+      {/* 🚀 NEW: Dynamic CSS for pulsing Overview tab */}
+      <style jsx>{`
+        @keyframes pulse-red {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
+        }
+        .tab-pulse-red {
+          animation: pulse-red 2s infinite;
+          color: #ef4444 !important;
+        }
+      `}</style>
+
       {/* Header */}
       <AuditHeader 
         selectedAudit={selectedAudit}
         onBack={onBack}
+        onCompanyClick={handleCompanyClick}
       />
 
       {/* Navigation Tabs */}
@@ -549,6 +742,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         onModuleChange={onModuleChange}
         currentData={extractedData}
         walkthroughApplications={currentWalkthroughApplications}
+        hasActionItems={hasActionItems()} // 🚀 NEW: Pass action items status
       />
 
       {/* Main Content */}
@@ -561,12 +755,12 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
             user={user}
           />
 
-          {/* Tab Content - 🔧 FIXED: Pass local state instead of props */}
+          {/* Tab Content - 🚀 ENHANCED: Pass all necessary props */}
           <TabContentRenderer
             currentModule={currentModule}
             currentData={extractedData}
             walkthroughApplications={currentWalkthroughApplications}
-            walkthroughRequests={localWalkthroughRequests} // 🚀 KEY CHANGE: Use local state
+            walkthroughRequests={localWalkthroughRequests}
             user={user}
             uploadedFiles={uploadedFiles}
             isDragOver={isDragOver}
@@ -589,6 +783,11 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
             getRiskLevelColor={getRiskLevelColor}
             getShortDescriptionForParsing={getShortDescriptionForParsing}
             getControlIcon={getControlIcon}
+            // 🚀 NEW: Action handlers for next action buttons
+            onSamplingConfigure={handleSamplingConfigure}
+            onGenerateSamples={handleGenerateSamples}
+            onSendEvidenceRequest={handleSendEvidenceRequest}
+            onReviewEvidence={handleReviewEvidence}
           />
         </div>
       </div>
@@ -602,7 +801,15 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         className="hidden"
       />
 
-      {/* Modals */}
+      {/* 🚀 NEW: Company Details Modal */}
+      <CompanyDetailsModal
+        isOpen={isCompanyModalOpen}
+        onClose={() => setIsCompanyModalOpen(false)}
+        audit={selectedAudit}
+        user={user}
+      />
+
+      {/* Existing Modals */}
       <ClientSchedulingModal
         isOpen={isSchedulingModalOpen}
         onClose={() => {
@@ -626,6 +833,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
         onComplete={handleCompletionSubmission}
       />
 
+      {/* 🚀 ENHANCED: Control Modal with active tab support */}
       {selectedControl && (
         <ControlDetailModal
           control={selectedControl}
@@ -634,9 +842,12 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
           onUpdateControl={handleUpdateControl}
           onEvidenceUpload={handleEvidenceUpload}
           auditPeriod={auditPeriod}
+          getSamplingStatusInfo={getSamplingStatusInfo}
+          initialActiveTab={modalActiveTab}
         />
       )}
 
+      {/* 🚀 ENHANCED: ITAC Modal with active tab support */}
       {selectedITAC && (
         <ControlDetailModal
           control={{
@@ -657,9 +868,12 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
           onUpdateControl={handleUpdateControl}
           onEvidenceUpload={handleEvidenceUpload}
           auditPeriod={auditPeriod}
+          getSamplingStatusInfo={getSamplingStatusInfo}
+          initialActiveTab={modalActiveTab}
         />
       )}
 
+      {/* 🚀 ENHANCED: Key Report Modal with active tab support */}
       {selectedKeyReport && (
         <ControlDetailModal
           control={{
@@ -680,6 +894,8 @@ const AuditSetup: React.FC<AuditSetupProps> = ({
           onUpdateControl={handleUpdateControl}
           onEvidenceUpload={handleEvidenceUpload}
           auditPeriod={auditPeriod}
+          getSamplingStatusInfo={getSamplingStatusInfo}
+          initialActiveTab={modalActiveTab}
         />
       )}
 

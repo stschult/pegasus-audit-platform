@@ -215,6 +215,11 @@ export interface WalkthroughApplication {
   category: string;
   relatedReports: KeyReportReference[];
   extractedFromReports: boolean; // vs manually added
+  attendees?: Array<{
+    name: string;
+    role: string;
+    email?: string;
+  }>; // ADD THIS LINE
   
   // Default settings
   estimatedDuration: number; // Default to 1 hour (60 minutes)
@@ -231,6 +236,8 @@ export interface WalkthroughRequest {
   id: string;
   auditId: string;
   applicationId: string; // Link to WalkthroughApplication
+  application: string; // ADD THIS LINE
+  owner: string; // ADD THIS LINE
   applicationName: string;
   businessOwner: string;
   requestType: 'walkthrough';

@@ -19,6 +19,7 @@ interface AuditNavigationProps {
   onModuleChange: (moduleId: string) => void;
   currentData: ExcelData | null;
   walkthroughApplications: any[];
+  hasActionItems?: boolean; // ADD THIS LINE
 }
 
 const AUDIT_MODULES = [

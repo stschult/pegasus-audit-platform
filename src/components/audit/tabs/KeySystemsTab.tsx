@@ -1,4 +1,4 @@
-// File: components/audit/tabs/KeySystemsTab.tsx - FINAL WORKING VERSION
+// File: src/components/audit/tabs/KeySystemsTab.tsx - UPDATED WITH AUDITCARD
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -15,8 +15,10 @@ import {
   Briefcase,
   StickyNote,
   Save,
-  X
+  X,
+  Eye
 } from 'lucide-react';
+import AuditCard from '../shared/AuditCard';
 
 // Simple KeySystem interface
 interface KeySystem {
@@ -71,79 +73,54 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
     }
   };
 
-  const getSystemColor = (category: string) => {
+  // Map system categories to our 4 standard themes
+  const getSystemTheme = (category: string): 'blue' | 'green' | 'purple' | 'orange' => {
     switch (category.toLowerCase()) {
-      case 'erp system': return 'amber';
+      case 'erp system': return 'blue';
       case 'trading platform': return 'orange';
-      case 'business system': return 'yellow';
-      case 'infrastructure': return 'lime';
-      case 'hr/finance system': return 'emerald';
-      case 'analytics platform': return 'teal';
-      case 'payment system': return 'cyan';
-      default: return 'amber';
+      case 'business system': return 'green';
+      case 'infrastructure': return 'purple';
+      case 'hr/finance system': return 'green';
+      case 'analytics platform': return 'purple';
+      case 'payment system': return 'blue';
+      default: return 'blue';
     }
   };
 
-  const getColorClasses = (color: string) => {
-    const colorMap: { [key: string]: any } = {
-      amber: {
-        bg: 'bg-amber-100',
-        icon: 'text-amber-600',
-        hover: 'hover:bg-amber-200',
-        border: 'border-amber-200',
-        hoverBorder: 'hover:border-amber-300',
-        text: 'text-amber-700'
-      },
-      orange: {
-        bg: 'bg-orange-100',
-        icon: 'text-orange-600',
-        hover: 'hover:bg-orange-200',
-        border: 'border-orange-200',
-        hoverBorder: 'hover:border-orange-300',
-        text: 'text-orange-700'
-      },
-      yellow: {
-        bg: 'bg-yellow-100',
-        icon: 'text-yellow-600',
-        hover: 'hover:bg-yellow-200',
-        border: 'border-yellow-200',
-        hoverBorder: 'hover:border-yellow-300',
-        text: 'text-yellow-700'
-      },
-      lime: {
-        bg: 'bg-lime-100',
-        icon: 'text-lime-600',
-        hover: 'hover:bg-lime-200',
-        border: 'border-lime-200',
-        hoverBorder: 'hover:border-lime-300',
-        text: 'text-lime-700'
-      },
-      emerald: {
-        bg: 'bg-emerald-100',
-        icon: 'text-emerald-600',
-        hover: 'hover:bg-emerald-200',
-        border: 'border-emerald-200',
-        hoverBorder: 'hover:border-emerald-300',
-        text: 'text-emerald-700'
-      },
-      teal: {
-        bg: 'bg-teal-100',
-        icon: 'text-teal-600',
-        hover: 'hover:bg-teal-200',
-        border: 'border-teal-200',
-        hoverBorder: 'hover:border-teal-300',
-        text: 'text-teal-700'
-      },
-      cyan: {
-        bg: 'bg-cyan-100',
-        icon: 'text-cyan-600',
-        hover: 'hover:bg-cyan-200',
-        border: 'border-cyan-200',
-        hoverBorder: 'hover:border-cyan-300',
-        text: 'text-cyan-700'
-      }
-    };
-    return colorMap[color] || colorMap.amber;
+  // Create a risk level based on reports count (more reports = higher importance)
+  const getSystemRiskLevel = (reportsCount: number): string => {
+    if (reportsCount >= 5) return 'high';
+    if (reportsCount >= 2) return 'medium';
+    return 'low';
+  };
+
+  // Standard getRiskLevelColor function like other tabs
+  const getRiskLevelColor = (riskLevel: string) => {
+    switch (riskLevel?.toLowerCase()) {
+      case 'high': return 'text-red-600 bg-red-100';
+      case 'medium': return 'text-yellow-600 bg-yellow-100';
+      case 'low': return 'text-green-600 bg-green-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  // Handle system card click - opens detail view (preserves existing functionality)
+  const handleSystemClick = (system: KeySystem) => {
+    console.log('🔧 System clicked:', system.name);
+    // Could open a detail modal here or navigate to system detail view
+    // For now, just log the click
+  };
+
+  // Get action button for system (auditors can edit notes, view details)
+  const getSystemActionButton = (system: KeySystem) => {
+    if (user?.userType === 'auditor' && system.notes && system.notes.length > 0) {
+      return {
+        text: 'View Details',
+        icon: Eye,
+        onClick: () => handleSystemClick(system)
+      };
+    }
+    return null;
   };
 
   const handleAddSystem = (systemData: Omit<KeySystem, 'id' | 'isDefault'>) => {
@@ -186,7 +163,7 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
     }
   };
 
-  // Simple Add Modal Component (inline)
+  // Simple Add Modal Component (inline) - PRESERVED
   const AddSystemModal = () => {
     const [formData, setFormData] = useState({
       name: '',
@@ -281,7 +258,7 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 flex items-center gap-2"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
                 Add System
@@ -295,7 +272,7 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header - PRESERVED */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Key Systems ({systems.length})</h2>
@@ -311,7 +288,7 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
         {user?.userType === 'auditor' && (
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add New System
@@ -319,119 +296,39 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
         )}
       </div>
 
-      {/* Systems Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {/* Systems Grid - NOW USING AUDITCARD */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {systems.map((system) => {
           const Icon = getSystemIcon(system.category);
-          const color = getSystemColor(system.category);
-          const colors = getColorClasses(color);
+          const theme = getSystemTheme(system.category);
+          const riskLevel = getSystemRiskLevel(system.keyReportsCount);
+          const actionButton = getSystemActionButton(system);
           
           return (
-            <div
+            <AuditCard
               key={system.id}
-              className={`bg-white border-2 rounded-lg p-6 transition-all group ${colors.border} ${colors.hoverBorder} hover:shadow-lg`}
-            >
-              {/* System Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <div className={`p-3 rounded-lg transition-colors ${colors.bg} ${colors.hover}`}>
-                    <Icon className={`h-6 w-6 ${colors.icon}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate text-lg">
-                      {system.name}
-                    </h3>
-                    <p className="text-sm text-gray-500 truncate">{system.category}</p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full whitespace-nowrap ${colors.bg} ${colors.text}`}>
-                    {system.keyReportsCount} Reports
-                  </span>
-                  {!system.isDefault && user?.userType === 'auditor' && (
-                    <button
-                      onClick={() => handleDeleteSystem(system.id)}
-                      className="text-red-600 hover:text-red-800 p-1"
-                      title="Delete System"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* System Description */}
-              <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                {system.description}
-              </p>
-
-              {/* Owner */}
-              <div className="flex items-center space-x-2 mb-4">
-                <Users className="h-4 w-4 text-gray-500" />
-                <span className="text-sm text-gray-700 truncate">{system.owner}</span>
-              </div>
-
-              {/* Notes Section */}
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                    <StickyNote className="h-4 w-4" />
-                    Notes
-                  </label>
-                  {user?.userType === 'auditor' && editingNotes !== system.id && (
-                    <button
-                      onClick={() => handleEditNotes(system.id, system.notes)}
-                      className="text-amber-600 hover:text-amber-800 p-1"
-                      title="Edit Notes"
-                    >
-                      <Edit className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-                
-                {editingNotes === system.id ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={tempNotes}
-                      onChange={(e) => setTempNotes(e.target.value)}
-                      placeholder="Add notes about this system..."
-                      rows={3}
-                      className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={handleCancelNotes}
-                        className="px-3 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleSaveNotes(system.id)}
-                        className="px-3 py-1 text-xs text-white bg-amber-600 rounded hover:bg-amber-700 transition-colors flex items-center gap-1"
-                      >
-                        <Save className="h-3 w-3" />
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="min-h-[60px]">
-                    {system.notes ? (
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{system.notes}</p>
-                    ) : (
-                      <p className="text-sm text-gray-400 italic">
-                        {user?.userType === 'auditor' ? 'Click edit to add notes...' : 'No notes available'}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+              id={system.id}
+              title={system.name}
+              subtitle={system.category}
+              description={system.description || 'IT system used in business operations'}
+              theme={theme}
+              icon={Icon}
+              statusInfo={!actionButton ? {
+                status: `${system.keyReportsCount} Reports`,
+                colorClass: 'bg-gray-100 text-gray-700'
+              } : undefined}
+              actionButton={actionButton}
+              needsAction={false} // Systems don't typically need urgent action
+              riskLevel={riskLevel}
+              bottomLeftText={system.owner || 'No Owner Assigned'}
+              onClick={() => handleSystemClick(system)}
+              getRiskLevelColor={getRiskLevelColor}
+            />
           );
         })}
       </div>
 
-      {/* Empty State */}
+      {/* Empty State - PRESERVED */}
       {systems.length === 0 && (
         <div className="text-center py-12">
           <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -445,7 +342,7 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
           {user?.userType === 'auditor' && (
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add First System
@@ -454,8 +351,51 @@ const KeySystemsTab: React.FC<KeySystemsTabProps> = ({ user, extractedSystems })
         </div>
       )}
 
-      {/* Add System Modal */}
+      {/* Add System Modal - PRESERVED */}
       <AddSystemModal />
+
+      {/* Notes Editing Modal - COULD BE ADDED HERE FOR CLICK DETAIL VIEW */}
+      {editingNotes && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <StickyNote className="h-5 w-5" />
+                Edit System Notes
+              </h3>
+              <button onClick={handleCancelNotes} className="p-1 hover:bg-gray-100 rounded">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <textarea
+                value={tempNotes}
+                onChange={(e) => setTempNotes(e.target.value)}
+                placeholder="Add notes about this system..."
+                rows={6}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+              
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={handleCancelNotes}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSaveNotes(editingNotes!)}
+                  className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  Save Notes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-// components/audit/ControlDetailModal.tsx - FIXED: Restore Auto Sample Generation
+// components/audit/ControlDetailModal.tsx - FIXED: Restore Auto Sample Generation + Client Evidence System
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -46,6 +46,8 @@ interface ControlDetailModalProps {
     startDate: Date;
     endDate: Date;
   };
+  getSamplingStatusInfo: (controlId: string) => any;
+  initialActiveTab?: 'details' | 'evidence' | 'sampling' | 'notes'; // ADD THIS LINE
 }
 
 export default function ControlDetailModal({
@@ -57,7 +59,8 @@ export default function ControlDetailModal({
   auditPeriod = {
     startDate: new Date('2025-01-01'),
     endDate: new Date('2025-12-31')
-  }
+  },
+  getSamplingStatusInfo
 }: ControlDetailModalProps) {
   const [editedControl, setEditedControl] = useState<any>(null);
   const [evidenceList, setEvidenceList] = useState<Evidence[]>([]);
@@ -689,40 +692,172 @@ export default function ControlDetailModal({
               <div className="max-w-4xl mx-auto">
                 {user?.userType === 'client' ? (
                   <div className="space-y-6">
+                    {/* Client Evidence Upload Section */}
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                       <h3 className="font-semibold text-green-900 mb-2 flex items-center">
                         <Upload className="w-5 h-5 mr-2" />
-                        Evidence Upload Center
+                        Evidence Upload for {displayTitle}
                       </h3>
                       <p className="text-green-800 text-sm">
-                        Upload the requested evidence for this control. If you have questions about what's needed, use the Notes tab to ask your audit team.
+                        Upload evidence for the sample dates listed below. If you have questions about what's needed, use the Notes tab to ask your audit team.
                       </p>
                     </div>
 
-                    <div className="bg-white border border-gray-200 rounded-lg p-6">
-                      <h4 className="font-semibold text-gray-900 mb-4">Additional Evidence Upload</h4>
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
-                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-lg font-medium text-gray-700 mb-2">Drop files here or click to upload</p>
-                        <p className="text-sm text-gray-500 mb-4">Support for multiple file types: PDF, Word, Excel, Images</p>
-                        <input
-                          type="file"
-                          multiple
-                          onChange={handleEvidenceUpload}
-                          className="hidden"
-                          id="general-evidence-upload"
-                        />
-                        <label
-                          htmlFor="general-evidence-upload"
-                          className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer font-medium"
-                        >
-                          <Upload className="w-4 h-4 mr-2" />
-                          Choose Files
-                        </label>
+                    {/* Sample Dates Display for Clients */}
+                    {(() => {
+                      const statusInfo = getSamplingStatusInfo(editedControl.id);
+                      const { sampleDates } = statusInfo;
+                      
+                      if (statusInfo.status === 'Sample Dates Received' && sampleDates && sampleDates.length > 0) {
+                        return (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+                              <Calendar className="w-5 h-5 mr-2" />
+                              Required Sample Dates ({sampleDates.length} samples)
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                              {sampleDates.map((date, index) => (
+                                <div key={index} className="bg-white border border-blue-200 rounded px-3 py-2 text-sm font-mono text-blue-800">
+                                  {new Date(date).toLocaleDateString()}
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-blue-700 text-sm mt-3">
+                              <strong>Instructions:</strong> Please provide evidence for each of the dates listed above. 
+                              This may include reports, logs, screenshots, or documentation showing the control was operating on these specific dates.
+                            </p>
+                          </div>
+                        );
+                      } else if (statusInfo.status === 'Awaiting Sample Dates') {
+                        return (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                            <h4 className="font-semibold text-yellow-900 mb-2 flex items-center">
+                              <Clock className="w-5 h-5 mr-2" />
+                              Awaiting Sample Dates
+                            </h4>
+                            <p className="text-yellow-800 text-sm">
+                              Your auditor is currently preparing the sample dates for this control. 
+                              You'll receive specific dates and evidence requirements soon.
+                            </p>
+                          </div>
+                        );
+                      } else if (statusInfo.status === 'Under Auditor Review') {
+                        return (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <h4 className="font-semibold text-blue-900 mb-2 flex items-center">
+                              <CheckCircle className="w-5 h-5 mr-2" />
+                              Evidence Submitted - Under Review
+                            </h4>
+                            <p className="text-blue-800 text-sm">
+                              Your evidence has been submitted and is currently being reviewed by the audit team. 
+                              You'll be notified if any additional evidence is needed.
+                            </p>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                            <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                              <FileText className="w-5 h-5 mr-2" />
+                              Evidence Status: {statusInfo.status}
+                            </h4>
+                            <p className="text-gray-700 text-sm">
+                              Current status for this control. Check back for updates on evidence requirements.
+                            </p>
+                          </div>
+                        );
+                      }
+                    })()}
+
+                    {/* Evidence Upload Section - Show only when samples are available */}
+                    {(() => {
+                      const statusInfo = getSamplingStatusInfo(editedControl.id);
+                      if (statusInfo.status === 'Sample Dates Received') {
+                        return (
+                          <div className="bg-white border border-gray-200 rounded-lg p-6">
+                            <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+                              <Upload className="w-5 h-5 mr-2" />
+                              Upload Evidence for Sample Dates
+                            </h4>
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
+                              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                              <p className="text-lg font-medium text-gray-700 mb-2">Drop files here or click to upload</p>
+                              <p className="text-sm text-gray-500 mb-4">
+                                Accepted formats: PDF, Word, Excel, Images, CSV
+                                <br />
+                                Please include evidence for all sample dates listed above
+                              </p>
+                              <input
+                                type="file"
+                                multiple
+                                onChange={handleEvidenceUpload}
+                                className="hidden"
+                                id="client-evidence-upload"
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif"
+                              />
+                              <label
+                                htmlFor="client-evidence-upload"
+                                className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer font-medium transition-colors"
+                              >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Choose Evidence Files
+                              </label>
+                            </div>
+                            
+                            {/* Evidence Upload Guidelines */}
+                            <div className="mt-4 bg-gray-50 rounded-lg p-4">
+                              <h5 className="font-medium text-gray-900 mb-2">Evidence Guidelines:</h5>
+                              <ul className="text-sm text-gray-600 space-y-1 list-disc ml-5">
+                                <li>Include documentation for each sample date</li>
+                                <li>Label files clearly (e.g., "Access_Review_2025-01-15.pdf")</li>
+                                <li>Provide complete, unredacted documents when possible</li>
+                                <li>If evidence isn't available for a specific date, note this in the Notes tab</li>
+                              </ul>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Previously Uploaded Evidence */}
+                    {evidenceList.length > 0 && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-6">
+                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+                          <CheckCircle className="w-5 h-5 mr-2 text-green-600" />
+                          Submitted Evidence ({evidenceList.length} files)
+                        </h4>
+                        <div className="space-y-3">
+                          {evidenceList.map((evidence, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                              <div className="flex items-center">
+                                <FileText className="w-5 h-5 text-blue-600 mr-3" />
+                                <div>
+                                  <p className="font-medium text-gray-900">{evidence.name}</p>
+                                  <p className="text-sm text-gray-500">Uploaded: {evidence.uploadDate} • {evidence.size}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                                  Submitted
+                                </span>
+                                {evidence.url && (
+                                  <button 
+                                    onClick={() => window.open(evidence.url, '_blank')}
+                                    className="text-blue-600 hover:text-blue-800"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ) : (
+                  /* Auditor Evidence Management */
                   <div className="space-y-6">
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                       <h3 className="font-semibold text-blue-900 mb-2 flex items-center">
@@ -733,6 +868,39 @@ export default function ControlDetailModal({
                         Review submitted evidence, create new evidence requests, and track documentation status for this control.
                       </p>
                     </div>
+
+                    {/* Show sample dates and evidence status for auditors */}
+                    {(() => {
+                      const statusInfo = getSamplingStatusInfo(editedControl.id);
+                      const samplingConfig = samplingConfigs.find(config => config.controlId === editedControl.id);
+                      const controlSamples = samplingConfig ? generatedSamples.filter(sample => sample.samplingConfigId === samplingConfig.id) : [];
+                      
+                      if (controlSamples.length > 0) {
+                        return (
+                          <div className="bg-white border border-gray-200 rounded-lg p-6">
+                            <h4 className="font-semibold text-gray-900 mb-4">Sample Status Overview</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {controlSamples.map((sample, index) => (
+                                <div key={index} className="border border-gray-200 rounded-lg p-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-mono text-sm text-gray-700">
+                                      {new Date(sample.sampleDate).toLocaleDateString()}
+                                    </span>
+                                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                                      Sample {index + 1}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500">
+                                    Evidence: {evidenceList.length > 0 ? 'Submitted' : 'Pending'}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 )}
               </div>
